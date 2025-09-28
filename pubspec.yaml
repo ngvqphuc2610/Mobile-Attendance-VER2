@@ -33,15 +33,56 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  camera: ^0.11.2
-  google_mlkit_face_detection: ^0.13.1
-  tflite_flutter: ^0.11.0
-  image: ^4.5.4
-  mobile_scanner: ^7.0.1
-  local_auth: ^2.3.0
-  hive: ^2.2.3
-  supabase_flutter: ^2.10.1
+  # UI & Icons
+  cupertino_icons: ^1.0.8 # iOS style icons
+  
+  # State Management
+  flutter_bloc: ^8.1.6 # BLoC pattern for state management
+  equatable: ^2.0.5 # For value equality
+  
+  # Navigation
+  go_router: ^16.2.2 # Routing
+  
+  # Database & Backend
+  supabase_flutter: ^2.10.1 # Supabase client
+  hive: ^2.2.3 # Local database
+  hive_flutter: ^1.1.0 # Hive for Flutter
+  
+  # Camera & Image Processing
+  camera: ^0.11.2  # Camera plugin
+  image: ^4.5.4 # Image processing
+  image_picker: ^1.0.8 # Pick images from gallery/camera
+  
+  # ML Kit & Face Recognition
+  google_mlkit_face_detection: ^0.13.1 # Face detection
+  tflite_flutter: ^0.11.0 # TensorFlow Lite plugin
+  
+  # Scanner
+  mobile_scanner: ^7.0.1 # QR code scanning
+  
+  # Authentication
+  local_auth: ^2.3.0 # Local authentication (fingerprint/face ID)
+  
+  # Storage & File Handling
+  path_provider: ^2.1.4 # Path provider
+  shared_preferences: ^2.3.2 # Shared preferences
+  
+  # Permissions
+  permission_handler: ^11.3.1 # Permission handler
+  
+  # Utilities
+  crypto: ^3.0.5 # Crypto library
+  get_it: ^7.7.0 # Dependency injection
+  flutter_dotenv: ^6.0.0 # Environment variables
+  
+  # UI Components
+  flutter_spinkit: ^5.2.1 # Loading indicators
+  awesome_dialog: ^3.2.1 # Beautiful dialogs
+  cached_network_image: ^3.3.1 # Cached images
+  shimmer: ^3.0.0 # Shimmer loading effect
+  
+  # Date & Time
+  intl: ^0.19.0 # Internationalization and date formatting
 
 dev_dependencies:
   flutter_test:
@@ -66,9 +107,10 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/
+    - assets/icons/
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
