@@ -37,7 +37,8 @@
     <!-- Thiết bị có camera (không bắt buộc tuyệt đối để vẫn cài trên thiết bị không có camera) -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-
+    <!-- Thiết bị có cảm biến vân tay -->
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
     <application
         android:label="mobile_attendance"
         android:name="${applicationName}"

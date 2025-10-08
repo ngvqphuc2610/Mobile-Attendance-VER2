@@ -6,34 +6,35 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/di/dependency_injection.dart';
 import 'core/constants/app_theme.dart';
 import 'presentation/bloc/student/student_bloc.dart';
-import 'presentation/pages/home_page.dart';
+import 'package:go_router/go_router.dart';
 import 'presentation/pages/login_page.dart';
-import 'presentation/pages/face_scan_page.dart';
-import 'presentation/pages/barcode_scan_page.dart';
 import 'data/repositories/student_repository.dart';
+
+import 'core/config/router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
-
-  // Initialize Supabase
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-  if (supabaseUrl == null ||
-      supabaseAnonKey == null ||
-      supabaseUrl.isEmpty ||
-      supabaseAnonKey.isEmpty) {
-    throw Exception(
-      'SUPABASE_URL or SUPABASE_ANON_KEY is missing or empty in .env',
-    );
+  print("🚀 App starting...");
+  
+  try {
+    await dotenv.load(fileName: ".env");
+    print("✅ Environment loaded");
+    
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    
+    print("🔗 Supabase URL: $supabaseUrl");
+    
+    await Supabase.initialize(url: supabaseUrl!, anonKey: supabaseAnonKey!);
+    print("✅ Supabase initialized");
+    
+    await setupDependencyInjection();
+    print("✅ DI setup complete");
+    
+  } catch (e) {
+    print("❌ Error in main: $e");
   }
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-
-  // Setup dependency injection
-  await setupDependencyInjection();
-
+  
   runApp(const MyApp());
 }
 
@@ -48,7 +49,7 @@ class MyApp extends StatelessWidget {
           create: (context) => StudentBloc(getIt<StudentRepository>()),
         ),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'Mobile Attendance',
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -79,15 +80,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        initialRoute: Supabase.instance.client.auth.currentSession == null
-            ? '/login'
-            : '/home',
-        routes: {
-          '/login': (context) => const LoginPage(),
-          '/home': (context) => const HomePage(),
-          '/face_scan': (context) => const FaceScanPage(),
-          '/barcode_scan': (context) => const BarcodeScanPage(),
-        },
+        routerConfig: appRouter,
         debugShowCheckedModeBanner: false,
       ),
     );

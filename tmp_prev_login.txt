@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/app_theme.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,11 +20,6 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   String? _error;
   final _auth = LocalAuthentication();
-  final _secure = const FlutterSecureStorage();
-  final _aOpts = const AndroidOptions(encryptedSharedPreferences: true);
-  final _iOpts = const IOSOptions(
-    accessibility: KeychainAccessibility.first_unlock,
-  );
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -39,12 +34,6 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (response.user != null) {
         if (!mounted) return;
-        await _secure.write(
-          key: 'biometric_last',
-          value: DateTime.now().toIso8601String(),
-          aOptions: _aOpts,
-          iOptions: _iOpts,
-        );
         context.go('/splash');
       } else {
         setState(() => _error = 'Đăng nhập thất bại!');
@@ -84,8 +73,7 @@ class _LoginPageState extends State<LoginPage> {
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.email),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Nhập email' : null,
+                validator: (value) => value == null || value.isEmpty ? 'Nhập email' : null,
               ),
               const SizedBox(height: AppSizes.paddingMedium),
               TextFormField(
@@ -95,9 +83,7 @@ class _LoginPageState extends State<LoginPage> {
                   prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Nhập mật khẩu'
-                    : null,
+                validator: (value) => value == null || value.isEmpty ? 'Nhập mật khẩu' : null,
               ),
               const SizedBox(height: AppSizes.paddingLarge),
               if (_error != null) ...[
@@ -130,67 +116,36 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final enabled = (await _secure.read(
-        key: 'biometric_enabled',
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      )) == 'true';
-      
-      if (!enabled) {
-        setState(() => _error = 'Chưa bật vân tay trong mục Tài khoản');
-        return;
-      }
-
       final ok = await _auth.authenticate(
         localizedReason: 'Xác thực để đăng nhập',
         options: const AuthenticationOptions(biometricOnly: true),
       );
       if (!ok) return;
 
-      final email = await _secure.read(
-        key: 'biometric_email',
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      );
-      final password = await _secure.read(
-        key: 'biometric_password',
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      );
-      
-      if (email == null || password == null) {
-        setState(() => _error = 'Thiếu thông tin đăng nhập. Hãy bật lại vân tay trong mục Tài khoản.');
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool('biometric_enabled') ?? false;
+      final email = prefs.getString('biometric_email');
+      final password = prefs.getString('biometric_password');
+      if (!enabled || email == null || password == null) {
+        setState(() => _error = 'Chưa liên kết tài khoản với vân tay');
         return;
       }
 
       setState(() => _loading = true);
-
-      try {
-        final response = await Supabase.instance.client.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
-        
-        if (response.user != null && mounted) {
-          await _secure.write(
-            key: 'biometric_last',
-            value: DateTime.now().toIso8601String(),
-            aOptions: _aOpts,
-            iOptions: _iOpts,
-          );
-          context.go('/splash');
-        } else {
-          setState(() => _error = 'Đăng nhập thất bại');
-        }
-      } on AuthException catch (e) {
-        setState(() => _error = 'Lỗi đăng nhập: ${e.message}');
+      final res = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      if (res.user != null && mounted) {
+        context.go('/splash');
+      } else {
+        setState(() => _error = 'Đăng nhập bằng vân tay thất bại');
       }
     } catch (e) {
-      setState(() => _error = 'Lỗi không xác định: $e');
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 }
-
 

@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../core/constants/app_strings.dart';
+
 import '../../core/constants/app_theme.dart';
-import '../bloc/student/student_bloc.dart';
-import '../bloc/student/student_event.dart';
-import '../bloc/student/student_state.dart';
-import 'student_list_page.dart';
 import 'attendance_page.dart';
-import 'face_scan_page.dart';
-import 'barcode_scan_page.dart';
 import 'detail_account_page.dart';
+import 'student_list_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,11 +15,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const HomeContent(),
-    const StudentListPage(),
-    const AttendancePage(),
-    const DetailAccountPage(),
+  final List<Widget> _pages = const [
+    HomeContent(),
+    StudentListPage(),
+    AttendancePage(),
+    DetailAccountPage(),
   ];
 
   @override
@@ -33,30 +27,38 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: AppColors.barcodeColor,
+        showUnselectedLabels: true,
+        elevation: 8,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textSecondary,
+        backgroundColor: Colors.white,
+        onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: AppStrings.home,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: AppStrings.students,
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Sinh viên'),
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle),
-            label: AppStrings.attendance,
+            label: 'Điểm danh',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle),
-            label: AppStrings.account,
+            label: 'Tài khoản',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.schedule),
+            label: 'Thời khóa biểu',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.event),
+            label: 'Lịch thi',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.question_answer_outlined),
+            label: 'Hỏi đáp',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications),
+          label: 'Thông báo',)
         ],
       ),
     );
@@ -69,30 +71,107 @@ class HomeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.appTitle), centerTitle: true),
-      body: Padding(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSizes.paddingMedium,
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSizes.paddingSmall,
+                  vertical: 6,
+                ),
+                child: Image.asset(
+                  'assets/images/hutech_logo.png',
+                  width: 120, // tuỳ chỉnh kích thước
+                  height: 50,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: AppSizes.paddingMedium),
+              Expanded(
+                child: Text(
+                  'Tri thức - Đạo đức - Sáng tạo',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSizes.paddingMedium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome section
+            Text(
+              'Truy cập nhanh',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppSizes.paddingSmall),
+
             Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusLarge),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(AppSizes.paddingMedium),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: AppSizes.paddingMedium,
+                  crossAxisSpacing: AppSizes.paddingMedium,
                   children: [
-                    Text(
-                      'Chào mừng đến với ${AppStrings.appTitle}',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                    _quickAction(
+                      context,
+                      icon: Icons.school,
+                      color: AppColors.info,
+                      label: 'Eduzaa',
+                      onTap: () =>
+                          _comingSoon(context), // TODO: link đến Eduzaa
                     ),
-                    const SizedBox(height: AppSizes.paddingSmall),
-                    Text(
-                      'Hệ thống quản lý điểm danh sinh viên thông minh',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                    _quickAction(
+                      context,
+                      icon: Icons.calendar_month,
+                      color: AppColors.primary,
+                      label: 'Thời khóa biểu',
+                      onTap: () => _comingSoon(context), // TODO: mở TKB
+                    ),
+                    _quickAction(
+                      context,
+                      icon: Icons.event_available,
+                      color: AppColors.success,
+                      label: 'Lịch thi',
+                      onTap: () => _comingSoon(context), // TODO: mở lịch thi
+                    ),
+                    _quickAction(
+                      context,
+                      icon: Icons.check_circle,
+                      color: AppColors.secondary,
+                      label: 'Điểm danh',
+                      onTap: () {
+                        // TODO: nếu có route riêng thì dùng GoRouter/NamedRoute.
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AttendancePage(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -101,63 +180,41 @@ class HomeContent extends StatelessWidget {
 
             const SizedBox(height: AppSizes.paddingLarge),
 
-            // Quick actions
+            // Featured news (placeholder for now)
             Text(
-              'Chức năng chính',
+              'Tuổi trẻ HUTECH kêu gọi chung tay khắc phục hậu quả bão Bualoi: Mỗi đóng góp - Một yêu thương gửi trao',
               style: Theme.of(
                 context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: AppSizes.paddingMedium),
-
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: AppSizes.paddingMedium,
-                mainAxisSpacing: AppSizes.paddingMedium,
-                children: [
-                  _buildActionCard(
-                    context,
-                    title: 'Quản lý sinh viên',
-                    subtitle: 'Thêm, sửa, xóa thông tin sinh viên',
-                    icon: Icons.people,
-                    color: AppColors.primary,
-                    onTap: () {
-                      // Navigate to student list
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    title: 'Điểm danh',
-                    subtitle: 'Quét khuôn mặt, mã vạch',
-                    icon: Icons.check_circle,
-                    color: AppColors.success,
-                    onTap: () {
-                      // Navigate to attendance
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    title: 'Quét khuôn mặt',
-                    subtitle: 'Nhận diện bằng AI',
-                    icon: Icons.face,
-                    color: AppColors.faceColor,
-                    onTap: () {
-                      Navigator.pushNamed(context, '/face_scan');
-                    },
-                  ),
-                  _buildActionCard(
-                    context,
-                    title: 'Quét mã vạch',
-                    subtitle: 'Quét mã thẻ sinh viên',
-                    icon: Icons.qr_code_scanner,
-                    color: AppColors.barcodeColor,
-                    onTap: () {
-                      Navigator.pushNamed(context, '/barcode_scan');
-                    },
-                  ),
-                ],
+            const SizedBox(height: AppSizes.paddingSmall),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+              child: Container(
+                height: 180,
+                color: Colors.grey.shade200,
+                alignment: Alignment.center,
+                child: Icon(Icons.image, size: 64, color: Colors.grey.shade400),
               ),
+            ),
+
+            const SizedBox(height: AppSizes.paddingLarge),
+
+            Row(
+              children: [
+                Text(
+                  'Tin HUTECH',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () =>
+                      _comingSoon(context), // TODO: điều hướng danh sách tin
+                  child: const Text('Xem thêm'),
+                ),
+              ],
             ),
           ],
         ),
@@ -165,52 +222,43 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _buildActionCard(
+  Widget _quickAction(
     BuildContext context, {
-    required String title,
-    required String subtitle,
     required IconData icon,
+    required String label,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSizes.paddingMedium),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSizes.paddingMedium),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusLarge),
-                ),
-                child: Icon(icon, size: AppSizes.iconLarge, color: color),
-              ),
-              const SizedBox(height: AppSizes.paddingMedium),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: AppSizes.paddingSmall),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-              ),
-            ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSizes.paddingMedium),
+            decoration: BoxDecoration(
+              color: color.withOpacity(.08),
+              borderRadius: BorderRadius.circular(AppSizes.radiusLarge),
+            ),
+            child: Icon(icon, color: color, size: AppSizes.iconLarge),
           ),
-        ),
+          const SizedBox(height: AppSizes.paddingSmall),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+          ),
+        ],
       ),
     );
+  }
+
+  void _comingSoon(BuildContext context) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Tính năng sắp ra mắt')));
   }
 }

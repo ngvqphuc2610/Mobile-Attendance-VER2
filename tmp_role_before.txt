@@ -1,0 +1,40 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+enum AppRole { student, teacher, admin }
+
+Future<AppRole?> fetchUserRole() async {
+  final supa = Supabase.instance.client;
+  final user = supa.auth.currentUser;
+  if (user == null) return null;
+
+  // 1️⃣ Ưu tiên lấy từ user metadata (nếu backend set role ở đây)
+  final metaRole = user.userMetadata?['role'] as String?;
+  if (metaRole != null) {
+    switch (metaRole) {
+      case 'teacher':
+        return AppRole.teacher;
+      case 'admin':
+        return AppRole.admin;
+      default:
+        return AppRole.student;
+    }
+  }
+
+  // 2️⃣ Hoặc fallback lấy từ bảng profiles
+  final res = await supa
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+  final role = res?['role'] as String?;
+  switch (role) {
+    case 'teacher':
+      return AppRole.teacher;
+    case 'admin':
+      return AppRole.admin;
+    default:
+      return AppRole.student;
+  }
+}
+
