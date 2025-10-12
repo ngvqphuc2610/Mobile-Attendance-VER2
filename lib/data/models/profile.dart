@@ -8,6 +8,8 @@ class Profile extends Equatable {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? email;
+  final String? phone;
 
   const Profile({
     required this.id,
@@ -17,6 +19,8 @@ class Profile extends Equatable {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    this.email,
+    this.phone,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,8 @@ class Profile extends Equatable {
       isActive: json['is_active'] ?? true,
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
+      email: json['email'],
+      phone: json['phone'],
     );
   }
 
@@ -40,27 +46,9 @@ class Profile extends Equatable {
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'email': email,
+      'phone': phone,
     };
-  }
-
-  Profile copyWith({
-    String? id,
-    String? code,
-    String? fullName,
-    String? classId,
-    bool? isActive,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Profile(
-      id: id ?? this.id,
-      code: code ?? this.code,
-      fullName: fullName ?? this.fullName,
-      classId: classId ?? this.classId,
-      isActive: isActive ?? this.isActive,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
   }
 
   @override
@@ -72,5 +60,7 @@ class Profile extends Equatable {
     isActive,
     createdAt,
     updatedAt,
+    email,
+    phone,
   ];
 }

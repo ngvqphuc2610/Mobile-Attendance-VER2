@@ -1,0 +1,19 @@
+--Dễ export danh sách sinh viên ví dụ “Khoa CNTT – Hệ đại trà – Khóa 2022”.
+create or replace view public.v_profiles_with_faculty_track as
+select
+  p.id as profile_id,
+  p.mssv,
+  p.full_name,
+  c.name as class_name,
+  f.name as faculty_name,
+  co.year as cohort_year,
+  pt.name as program_track_name,
+  pt.code as program_track_code,
+  r.track_code as rule_track_code,
+  p.mssv_serial
+from public.profiles p
+left join public.classes c on p.class_id = c.id
+left join public.faculties f on c.faculty_id = f.id
+left join public.cohorts co on c.cohort_id = co.id
+left join public.mssv_scheme_rules r on r.track_code = p.mssv_track_code
+left join public.program_tracks pt on r.program_track_id = pt.id;

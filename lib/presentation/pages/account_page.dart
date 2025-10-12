@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // ✅ Import dotenv
 
 import '../../core/constants/app_theme.dart';
 import 'package:local_auth/local_auth.dart';
@@ -18,6 +19,7 @@ class _AccountPageState extends State<AccountPage> {
   String? _error;
   Map<String, dynamic>? _profile;
   bool _biometric = false;
+  DateTime? _biometricTimeout; // ✅ Thêm timeout tracking
   final _auth = LocalAuthentication();
   final _secure = const FlutterSecureStorage();
   final _aOpts = const AndroidOptions(encryptedSharedPreferences: true);
@@ -65,8 +67,9 @@ class _AccountPageState extends State<AccountPage> {
         _profile!['role'] = user.userMetadata?['role'];
       }
 
+      // Check biometric cho user hiện tại
       final enabled = await _secure.read(
-        key: 'biometric_enabled',
+        key: 'biometric_enabled_${user.id}',
         aOptions: _aOpts,
         iOptions: _iOpts,
       );
@@ -165,9 +168,11 @@ class _AccountPageState extends State<AccountPage> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () async {
-                          // Chỉ xóa biometric_last, giữ lại email/password cho lần đăng nhập sau
-                          await _secure.delete(key: 'biometric_last', aOptions: _aOpts, iOptions: _iOpts);
-                          
+                          await _secure.delete(
+                            key: 'biometric_last',
+                            aOptions: _aOpts,
+                            iOptions: _iOpts,
+                          );
                           await Supabase.instance.client.auth.signOut();
                           if (!mounted) return;
                           context.go('/login');
@@ -197,6 +202,28 @@ class _AccountPageState extends State<AccountPage> {
 
   Future<void> _enableBiometric() async {
     try {
+      // ✅ Kiểm tra timeout trước
+      if (_biometricTimeout != null) {
+        final remaining = _biometricTimeout!.difference(DateTime.now());
+        if (remaining.inSeconds > 0) {
+          final minutes = remaining.inMinutes;
+          final seconds = remaining.inSeconds % 60;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Vui lòng đợi ${minutes}:${seconds.toString().padLeft(2, '0')} để thử lại',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        } else {
+          // Timeout hết, reset
+          _biometricTimeout = null;
+        }
+      }
+
+      // Kiểm tra thiết bị hỗ trợ
       final supported = await _auth.isDeviceSupported();
       final canCheck = await _auth.canCheckBiometrics;
       if (!supported || !canCheck) {
@@ -206,6 +233,7 @@ class _AccountPageState extends State<AccountPage> {
         return;
       }
 
+      // Yêu cầu quyền và xác thực lần đầu
       final ok = await _auth.authenticate(
         localizedReason: 'Xác thực để bật đăng nhập vân tay',
         options: const AuthenticationOptions(
@@ -215,81 +243,261 @@ class _AccountPageState extends State<AccountPage> {
       );
       if (!ok) return;
 
-      // Hỏi mật khẩu để lưu cho biometric login
-      final user = Supabase.instance.client.auth.currentUser;
-      final emailCtrl = TextEditingController(text: user?.email ?? '');
-      final passCtrl = TextEditingController();
-      
-      final save = await showDialog<bool>(
+      // ✅ Hiển thị dialog với retry logic
+      await _showPasswordDialog();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể bật vân tay: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showPasswordDialog() async {
+    final passwordController = TextEditingController();
+    int attemptCount = 0;
+    const maxAttempts = 3;
+
+    while (attemptCount < maxAttempts) {
+      final result = await showDialog<String?>(
         context: context,
+        barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          title: const Text('Liên kết vân tay với tài khoản'),
+          title: const Text('Bật đăng nhập vân tay'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-                enabled: false,
+              Text(
+                attemptCount > 0 
+                  ? 'Mật khẩu không đúng! Còn ${maxAttempts - attemptCount} lần thử.'
+                  : 'Nhập mật khẩu hiện tại để xác nhận bật tính năng đăng nhập vân tay.',
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: passCtrl,
-                decoration: const InputDecoration(labelText: 'Nhập mật khẩu hiện tại'),
+                controller: passwordController,
+                decoration: InputDecoration(
+                  labelText: 'Mật khẩu',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  errorText: attemptCount > 0 ? 'Mật khẩu không đúng' : null,
+                ),
                 obscureText: true,
+                autofocus: true,
+                onSubmitted: (value) => Navigator.pop(ctx, value),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               const Text(
-                'Mật khẩu sẽ được mã hóa và lưu an toàn để đăng nhập bằng vân tay.',
+                'Thông tin sẽ được mã hóa và lưu an toàn trên thiết bị.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Lưu')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, passwordController.text),
+              child: const Text('Xác nhận'),
+            ),
           ],
         ),
       );
+
+      // User hủy
+      if (result == null) return;
+
+      // Password rỗng
+      if (result.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng nhập mật khẩu!'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        continue;
+      }
+
+      // ✅ Hiển thị loading khi kiểm tra password
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Lấy user hiện tại
+      final user = Supabase.instance.client.auth.currentUser;
+      final userId = user?.id;
+      final email = user?.email;
+
+      if (userId == null || email == null) {
+        Navigator.pop(context); // Đóng loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không tìm thấy thông tin người dùng'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Kiểm tra mật khẩu
+      final isValid = await _verifyPassword(email, result);
       
-      if (save != true || passCtrl.text.isEmpty) return;
-
-      // Bật cờ + lưu thông tin đăng nhập
-      await _secure.write(
-        key: 'biometric_enabled',
-        value: 'true',
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      );
-      await _secure.write(
-        key: 'biometric_email',
-        value: emailCtrl.text.trim(),
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      );
-      await _secure.write(
-        key: 'biometric_password',
-        value: passCtrl.text,
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      );
-
+      // Đóng loading
       if (!mounted) return;
-      setState(() => _biometric = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã bật đăng nhập vân tay')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể bật vân tay: $e')),
-      );
+      Navigator.pop(context);
+
+      if (isValid) {
+        // ✅ Password đúng - lưu biometric
+        await _saveBiometricData(userId, email, result);
+
+        setState(() => _biometric = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã bật đăng nhập vân tay thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return;
+      } else {
+        // ❌ Password sai
+        attemptCount++;
+        
+        // ✅ Xóa text trong form
+        passwordController.clear();
+        
+        if (attemptCount >= maxAttempts) {
+          // ✅ Hết lần thử - set timeout 3 phút
+          _biometricTimeout = DateTime.now().add(const Duration(minutes: 3));
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Đã nhập sai 3 lần! Vui lòng đợi 3 phút để thử lại.',
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+          return;
+        }
+        
+        // Còn lần thử - hiển thị thông báo và tiếp tục loop
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Mật khẩu không đúng! Còn ${maxAttempts - attemptCount} lần thử.',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        // Đợi 1 giây trước khi hiện dialog tiếp theo
+        await Future.delayed(const Duration(seconds: 1));
+      }
     }
   }
 
+  Future<bool> _verifyPassword(String email, String password) async {
+    try {
+      // ✅ Lấy từ dotenv (nếu bạn dùng flutter_dotenv)
+      final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+      final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+      // Kiểm tra xem có load được env không
+      if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
+        debugPrint('⚠️ Supabase credentials not found in .env file');
+        return false;
+      }
+
+      // Tạo client test hoàn toàn riêng biệt
+      final testClient = SupabaseClient(supabaseUrl, supabaseKey);
+
+      final testResponse = await testClient.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      // Đăng xuất test session ngay
+      await testClient.auth.signOut();
+      
+      // Giải phóng resources
+      testClient.dispose();
+
+      return testResponse.user != null;
+    } catch (e) {
+      debugPrint('Password verification error: $e');
+      return false;
+    }
+  }
+
+  Future<void> _saveBiometricData(
+    String userId,
+    String email,
+    String password,
+  ) async {
+    final session = Supabase.instance.client.auth.currentSession;
+
+    await _secure.write(
+      key: 'biometric_enabled_$userId',
+      value: 'true',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.write(
+      key: 'refresh_token_$userId',
+      value: session?.refreshToken ?? '',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.write(
+      key: 'biometric_email_$userId',
+      value: email,
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.write(
+      key: 'biometric_password_$userId',
+      value: password,
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+  }
+
   Future<void> _disableBiometric() async {
-    await _secure.delete(key: 'biometric_enabled', aOptions: _aOpts, iOptions: _iOpts);
-    await _secure.delete(key: 'biometric_email', aOptions: _aOpts, iOptions: _iOpts);
-    await _secure.delete(key: 'biometric_password', aOptions: _aOpts, iOptions: _iOpts);
+    final user = Supabase.instance.client.auth.currentUser;
+    final userId = user?.id;
+    if (userId == null) return;
+
+    // Xóa data của user hiện tại
+    await _secure.delete(
+      key: 'biometric_enabled_$userId',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.delete(
+      key: 'refresh_token_$userId',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.delete(
+      key: 'biometric_email_$userId',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+    await _secure.delete(
+      key: 'biometric_password_$userId',
+      aOptions: _aOpts,
+      iOptions: _iOpts,
+    );
+
     if (!mounted) return;
     setState(() => _biometric = false);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -315,7 +523,8 @@ class _AccountPageState extends State<AccountPage> {
           children: [
             CircleAvatar(
               radius: 44,
-              backgroundColor: AppColors.primary.withOpacity(.15),
+ 
+             backgroundColor: AppColors.primary.withOpacity(.15),
               child: Text(
                 initials,
                 style: const TextStyle(
@@ -380,7 +589,8 @@ class _AccountPageState extends State<AccountPage> {
 
   Widget _actionTile({
     required String title,
-    required String subtitle,
+ 
+   required String subtitle,
     required Widget leading,
     required VoidCallback onTap,
   }) {

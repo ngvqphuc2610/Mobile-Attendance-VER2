@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_theme.dart';
 import 'attendance_page.dart';
 import 'detail_account_page.dart';
-import 'student_list_page.dart';
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,7 +17,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Widget> _pages = const [
     HomeContent(),
-    StudentListPage(),
+
     AttendancePage(),
     DetailAccountPage(),
   ];
@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Sinh viên'),
+          
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle),
             label: 'Điểm danh',

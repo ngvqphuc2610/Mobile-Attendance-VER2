@@ -1,57 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_attendance/core/constants/app_theme.dart';
-import 'package:mobile_attendance/presentation/pages/account_page.dart';
-import 'package:mobile_attendance/presentation/pages/attendance_page.dart';
-import 'package:mobile_attendance/presentation/pages/student_list_page.dart';
-import 'package:mobile_attendance/presentation/pages/teacher/teacher_home_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'teacher_home_page.dart';
 
 class TeacherShell extends StatefulWidget {
   const TeacherShell({super.key});
-
   @override
   State<TeacherShell> createState() => _TeacherShellState();
 }
 
 class _TeacherShellState extends State<TeacherShell> {
-  int _currentIndex = 0;
-
-  late final List<Widget> _pages = const [
+  int _index = 0;
+  final _pages = const [
     TeacherHomePage(),
-    StudentListPage(),
-    AttendancePage(),
-    AccountPage(),
+    _TeacherSchedulePage(),
+    _TeacherQnaPage(),
+    _TeacherNotificationsPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final safeIndex = (_currentIndex >= 0 && _currentIndex < _pages.length)
-        ? _currentIndex
-        : 0;
-    if (safeIndex != _currentIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _currentIndex = safeIndex);
-      });
-    }
     return Scaffold(
-      body: _pages[safeIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: safeIndex,
-        showUnselectedLabels: true,
-        elevation: 8,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        backgroundColor: Colors.white,
-        onTap: (index) => setState(() {
-          _currentIndex = index.clamp(0, _pages.length - 1);
-        }),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Sinh viên'),
-          BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: 'Điểm danh'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_circle), label: 'Tài khoản'),
+      appBar: AppBar(
+        title: const Text('Teacher Portal'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.face_retouching_natural),
+            onPressed: () => Navigator.pushNamed(context, '/face_scan'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+          ),
         ],
       ),
+      body: IndexedStack(index: _index, children: _pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home'),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today),
+            label: 'Lịch dạy',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.forum_outlined),
+            label: 'Hỏi đáp',
+          ),
+          NavigationDestination(icon: Icon(Icons.campaign), label: 'Thông báo'),
+        ],
+      ),
+    );
+  }
+}
+
+// Placeholder pages for teacher
+class _TeacherSchedulePage extends StatelessWidget {
+  const _TeacherSchedulePage();
+  @override
+  Widget build(BuildContext context) =>
+      const _SimpleScaffold(title: 'Lịch dạy');
+}
+
+class _TeacherQnaPage extends StatelessWidget {
+  const _TeacherQnaPage();
+  @override
+  Widget build(BuildContext context) => const _SimpleScaffold(title: 'Hỏi đáp');
+}
+
+class _TeacherNotificationsPage extends StatelessWidget {
+  const _TeacherNotificationsPage();
+  @override
+  Widget build(BuildContext context) =>
+      const _SimpleScaffold(title: 'Thông báo');
+}
+
+class _SimpleScaffold extends StatelessWidget {
+  final String title;
+  const _SimpleScaffold({required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: const Center(child: Text('TODO: Nội dung sẽ cập nhật sau')),
+      backgroundColor: AppColors.background,
     );
   }
 }

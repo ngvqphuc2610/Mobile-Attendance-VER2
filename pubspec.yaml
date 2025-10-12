@@ -55,7 +55,7 @@ dependencies:
   mobile_scanner: ^7.0.1 # QR code scanning
   
   # Authentication
-  local_auth: ^2.3.0 # Local authentication (fingerprint/face ID)
+  local_auth: ^2.3.0 # Local authentication (fingerprint/face ID/biometric)
   flutter_secure_storage: ^9.2.4 # Secure storage
   
   # Storage & File Handling
@@ -66,7 +66,7 @@ dependencies:
   permission_handler: ^11.3.1 # Permission handler
   
   # Utilities
-  crypto: ^3.0.5 # Crypto library
+  crypto: ^3.0.5 # hashing
   get_it: ^7.7.0 # Dependency injection
   flutter_dotenv: ^6.0.0 # Environment variables
   

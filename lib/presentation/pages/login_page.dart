@@ -50,7 +50,17 @@ class _LoginPageState extends State<LoginPage> {
         setState(() => _error = 'Đăng nhập thất bại!');
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      String errorMessage;
+      if (e.toString().contains('Invalid login credentials')) {
+        errorMessage = 'Email hoặc mật khẩu không đúng!';
+      } else if (e.toString().contains('Email not confirmed')) {
+        errorMessage = 'Email chưa được xác thực!';
+      } else if (e.toString().contains('Too many requests')) {
+        errorMessage = 'Quá nhiều lần thử. Vui lòng đợi một chút!';
+      } else {
+        errorMessage = 'Lỗi đăng nhập: ${e.toString()}';
+      }
+      setState(() => _error = errorMessage);
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -101,7 +111,30 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: AppSizes.paddingLarge),
               if (_error != null) ...[
-                Text(_error!, style: const TextStyle(color: Colors.red)),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    border: Border.all(color: Colors.red.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: AppSizes.paddingMedium),
               ],
               SizedBox(
@@ -130,16 +163,23 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final enabled = (await _secure.read(
-        key: 'biometric_enabled',
-        aOptions: _aOpts,
-        iOptions: _iOpts,
-      )) == 'true';
+      // Tìm tất cả user đã setup biometric
+      final availableUsers = await _getAvailableBiometricUsers();
       
-      if (!enabled) {
-        setState(() => _error = 'Chưa bật vân tay trong mục Tài khoản');
+      if (availableUsers.isEmpty) {
+        setState(() => _error = 'Chưa có tài khoản nào bật vân tay');
         return;
       }
+
+      // Nếu có nhiều user, cho chọn
+      String? selectedUserId;
+      if (availableUsers.length == 1) {
+        selectedUserId = availableUsers.first['userId'];
+      } else {
+        selectedUserId = await _showUserSelectionDialog(availableUsers);
+      }
+
+      if (selectedUserId == null) return;
 
       final ok = await _auth.authenticate(
         localizedReason: 'Xác thực để đăng nhập',
@@ -147,23 +187,49 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (!ok) return;
 
+      setState(() => _loading = true);
+
+      // Thử refresh token trước
+      final refreshToken = await _secure.read(
+        key: 'refresh_token_$selectedUserId',
+        aOptions: _aOpts,
+        iOptions: _iOpts,
+      );
+
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        try {
+          final authRes = await Supabase.instance.client.auth.setSession(refreshToken);
+          if (authRes.session != null && mounted) {
+            await _secure.write(
+              key: 'biometric_last',
+              value: DateTime.now().toIso8601String(),
+              aOptions: _aOpts,
+              iOptions: _iOpts,
+            );
+            context.go('/splash');
+            return;
+          }
+        } catch (_) {
+          // Token expired, fallback
+        }
+      }
+
+      // Fallback: email/password
       final email = await _secure.read(
-        key: 'biometric_email',
+        key: 'biometric_email_$selectedUserId',
         aOptions: _aOpts,
         iOptions: _iOpts,
       );
       final password = await _secure.read(
-        key: 'biometric_password',
+        key: 'biometric_password_$selectedUserId',
         aOptions: _aOpts,
         iOptions: _iOpts,
       );
       
       if (email == null || password == null) {
-        setState(() => _error = 'Thiếu thông tin đăng nhập. Hãy bật lại vân tay trong mục Tài khoản.');
+        setState(() => _error = 'Thiếu thông tin đăng nhập cho user này');
         return;
       }
-
-      setState(() => _loading = true);
 
       try {
         final response = await Supabase.instance.client.auth.signInWithPassword(
@@ -172,6 +238,13 @@ class _LoginPageState extends State<LoginPage> {
         );
         
         if (response.user != null && mounted) {
+          // Cập nhật token mới
+          await _secure.write(
+            key: 'refresh_token_$selectedUserId',
+            value: response.session?.refreshToken ?? '',
+            aOptions: _aOpts,
+            iOptions: _iOpts,
+          );
           await _secure.write(
             key: 'biometric_last',
             value: DateTime.now().toIso8601String(),
@@ -179,17 +252,78 @@ class _LoginPageState extends State<LoginPage> {
             iOptions: _iOpts,
           );
           context.go('/splash');
-        } else {
-          setState(() => _error = 'Đăng nhập thất bại');
         }
-      } on AuthException catch (e) {
-        setState(() => _error = 'Lỗi đăng nhập: ${e.message}');
+      } catch (e) {
+        // Xử lý lỗi đăng nhập biometric
+        if (e.toString().contains('Invalid login credentials')) {
+          setState(() => _error = 'Thông tin đăng nhập vân tay đã hết hạn. Vui lòng đăng nhập lại và bật lại vân tay!');
+          // Xóa thông tin biometric cũ
+          await _secure.delete(key: 'biometric_enabled_$selectedUserId', aOptions: _aOpts, iOptions: _iOpts);
+          await _secure.delete(key: 'refresh_token_$selectedUserId', aOptions: _aOpts, iOptions: _iOpts);
+          await _secure.delete(key: 'biometric_email_$selectedUserId', aOptions: _aOpts, iOptions: _iOpts);
+          await _secure.delete(key: 'biometric_password_$selectedUserId', aOptions: _aOpts, iOptions: _iOpts);
+        } else {
+          setState(() => _error = 'Lỗi đăng nhập vân tay: $e');
+        }
       }
     } catch (e) {
-      setState(() => _error = 'Lỗi không xác định: $e');
+      setState(() => _error = 'Lỗi đăng nhập: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<List<Map<String, String>>> _getAvailableBiometricUsers() async {
+    final users = <Map<String, String>>[];
+
+    // Scan tất cả keys trong secure storage
+    final allKeys = await _secure.readAll(aOptions: _aOpts, iOptions: _iOpts);
+
+    for (final key in allKeys.keys) {
+      if (key.startsWith('biometric_enabled_')) {
+        final userId = key.replaceFirst('biometric_enabled_', '');
+        final email = await _secure.read(
+          key: 'biometric_email_$userId',
+          aOptions: _aOpts,
+          iOptions: _iOpts,
+        );
+
+        if (email != null) {
+          users.add({'userId': userId, 'email': email});
+        }
+      }
+    }
+
+    return users;
+  }
+
+  Future<String?> _showUserSelectionDialog(
+    List<Map<String, String>> users,
+  ) async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Chọn tài khoản'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: users
+              .map(
+                (user) => ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Text(user['email']!),
+                  onTap: () => Navigator.pop(ctx, user['userId']),
+                ),
+              )
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
