@@ -37,7 +37,12 @@ router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
     
     query += ' ORDER BY p.full_name';
     
-    const [accounts] = await db.execute(query, params);
+    let [accounts] = await db.execute(query, params);
+    accounts = accounts.map((row) => ({
+      ...row,
+      is_active: !!row.is_active,
+      is_email_verified: !!row.is_email_verified,
+    }));
     res.json(accounts);
   } catch (error) {
     console.error('Get accounts error:', error);
@@ -124,12 +129,24 @@ router.patch('/:id/toggle', authenticateToken, requireRole(['admin']), async (re
   try {
     const { id } = req.params;
     
-    await db.execute(
+    const [result] = await db.execute(
       'UPDATE accounts SET is_active = NOT is_active WHERE profile_id = ?',
       [id]
     );
     
-    res.json({ message: 'Account status updated successfully' });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    const [[updatedAccount]] = await db.execute(
+      'SELECT is_active FROM accounts WHERE profile_id = ?',
+      [id]
+    );
+
+    res.json({
+      message: 'Account status updated successfully',
+      is_active: !!updatedAccount?.is_active,
+    });
   } catch (error) {
     console.error('Toggle account error:', error);
     res.status(500).json({ error: 'Failed to update account status' });

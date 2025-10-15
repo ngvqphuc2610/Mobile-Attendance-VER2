@@ -21,6 +21,18 @@ class _AccountsPageState extends State<AccountsPage> {
   String? _error;
   String? _roleFilter;
 
+  bool _parseBool(dynamic value, {bool defaultValue = true}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      if (lower == 'true' || lower == '1') return true;
+      if (lower == 'false' || lower == '0') return false;
+    }
+    return defaultValue;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -42,11 +54,12 @@ class _AccountsPageState extends State<AccountsPage> {
             : null,
       );
 
-      _accounts = List<Map<String, dynamic>>.from(response);
-      // Ensure role field exists
-      _accounts = _accounts.map((a) {
-        return {...a, 'role': a['role'] ?? 'student'};
-      }).toList();
+      _accounts = response
+          .map((a) => Map<String, dynamic>.from(a)
+            ..['role'] = a['role'] ?? 'student'
+            ..['is_active'] = _parseBool(a['is_active'])
+            ..['is_email_verified'] = _parseBool(a['is_email_verified'], defaultValue: false))
+          .toList();
 
       _filteredAccounts = List.from(_accounts);
       // Apply client-side filter to mirror previous behavior
@@ -222,7 +235,7 @@ class _AccountsPageState extends State<AccountsPage> {
                       itemCount: _filteredAccounts.length,
                       itemBuilder: (context, index) {
                         final account = _filteredAccounts[index];
-                        final isActive = account['is_active'] ?? true;
+                        final isActive = _parseBool(account['is_active']);
 
                         return Card(
                           margin: const EdgeInsets.symmetric(
@@ -377,7 +390,7 @@ class _AccountsPageState extends State<AccountsPage> {
   }
 
   Future<void> _toggleAccountStatus(Map<String, dynamic> account) async {
-    final isActive = account['is_active'] ?? true;
+    final isActive = _parseBool(account['is_active']);
     final action = isActive ? 'disable' : 'enable';
 
     try {

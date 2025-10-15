@@ -1,0 +1,23 @@
+  Future<void> _toggleAccountStatus(Map<String, dynamic> account) async {
+    final isActive = _parseBool(account['is_active']);
+    final action = isActive ? 'disable' : 'enable';
+
+    try {
+      await AccountService.disableAccount(account['id'], action: action);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isActive ? '??A? vA' hi???u hA3a tA?i kho???n' : '??A? kA-ch ho???t tA?i kho???n',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadAccounts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('L??-i: '), backgroundColor: Colors.red),
+      );
+    }
+  }
+
