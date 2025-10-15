@@ -11,6 +11,8 @@ class AppConstants {
   // User Roles
   static const String roleAdmin = 'admin';
   static const String roleViewer = 'viewer';
+  static const String roleTeacher = 'teacher';
+  static const String roleStudent = 'student';
 
   // Face Recognition
   static const double faceConfidenceThreshold = 0.8;
@@ -23,4 +25,9 @@ class AppConstants {
   static const String tableAttendance = 'attendance';
   static const String tableFaceEmbeddings = 'face_embeddings';
   static const String tableUserRoles = 'user_roles';
+  static const String tableStudents = 'students';
+  static const String tableTeachers = 'teachers';
+  static const String tableSubjects = 'subjects';
+  static const String tableRooms = 'rooms';
+  
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_attendance/core/constants/app_theme.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'teacher_home_page.dart';
+import 'package:mobile_attendance/presentation/pages/teacher/teacher_home_page.dart';
+import 'package:mobile_attendance/data/services/auth_service.dart';
 
 class TeacherShell extends StatefulWidget {
   const TeacherShell({super.key});
@@ -30,7 +30,11 @@ class _TeacherShellState extends State<TeacherShell> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Supabase.instance.client.auth.signOut(),
+            onPressed: () async {
+              await AuthService.logout();
+              if (context.mounted)
+                Navigator.pushReplacementNamed(context, '/login');
+            },
           ),
         ],
       ),

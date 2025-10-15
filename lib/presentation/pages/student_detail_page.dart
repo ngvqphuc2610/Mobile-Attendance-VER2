@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/constants/app_strings.dart';
 import '../../core/constants/app_theme.dart';
+import '../../data/services/api_service.dart';
+import '../../core/constants/api_constants.dart';
 import '../widgets/loading_widget.dart';
 import 'face_register_page.dart';
 
@@ -30,32 +30,28 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
       loading = true;
       error = null;
     });
+
     try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('profiles')
-          .select()
-          .eq('id', widget.studentId)
-          .single();
-      if (response == null) {
-        setState(() {
-          error = 'Không tìm thấy sinh viên';
-          loading = false;
-        });
-        return;
-      }
+      // Get student details
+      final response = await ApiService.get(
+        '${ApiConstants.students}/${widget.studentId}',
+      );
       student = response;
-      // Lấy tên lớp nếu có
+
+      // Get class name if available
       if (student!['class_id'] != null) {
-        final classRes = await supabase
-            .from('classes')
-            .select('name')
-            .eq('id', student!['class_id'])
-            .single();
-        className = classRes?['name'] ?? 'Chưa có lớp';
+        try {
+          final classRes = await ApiService.get(
+            '${ApiConstants.classes}/${student!['class_id']}',
+          );
+          className = classRes['name'] ?? 'Chưa có lớp';
+        } catch (e) {
+          className = 'Chưa có lớp';
+        }
       } else {
         className = 'Chưa có lớp';
       }
+
       setState(() {
         loading = false;
       });
@@ -121,7 +117,22 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
                             'Mã sinh viên:',
                             student?['code'] ?? '',
                           ),
+                          _buildInfoRow(
+                            context,
+                            'MSSV:',
+                            student?['mssv'] ?? 'Chưa có',
+                          ),
                           _buildInfoRow(context, 'Lớp học:', className ?? ''),
+                          _buildInfoRow(
+                            context,
+                            'Email:',
+                            student?['email'] ?? '',
+                          ),
+                          _buildInfoRow(
+                            context,
+                            'Số điện thoại:',
+                            student?['phone'] ?? 'Chưa có',
+                          ),
                           _buildInfoRow(
                             context,
                             'Trạng thái:',
@@ -142,7 +153,9 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => FaceRegisterPage(
-                                  studentId: student?['id'] ?? widget.studentId,
+                                  studentId:
+                                      student?['profile_id'] ??
+                                      widget.studentId,
                                 ),
                               ),
                             );

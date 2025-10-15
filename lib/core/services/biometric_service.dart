@@ -1,10 +1,11 @@
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+// Supabase removed: service layer used instead
 
 class BiometricGate {
   final _auth = LocalAuthentication();
-  final _storage = const FlutterSecureStorage(); // iOS Keychain / Android Keystore
+  final _storage =
+      const FlutterSecureStorage(); // iOS Keychain / Android Keystore
 
   static const _kBiometricEnabled = 'biometric_enabled';
 

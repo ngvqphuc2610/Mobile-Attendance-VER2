@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_theme.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
+// Using ApiService directly for CRUD operations
 
 class AddStudentPage extends StatefulWidget {
   const AddStudentPage({super.key});
@@ -38,11 +40,7 @@ class _AddStudentPageState extends State<AddStudentPage> {
   Future<void> _loadFaculties() async {
     setState(() => _loadingFalculties = true);
     try {
-      final response = await Supabase.instance.client
-          .from('faculties')
-          .select('id, name, code')
-          .order('name');
-
+      final response = await ApiService.getList(ApiConstants.faculties);
       setState(() {
         _faculties = List<Map<String, dynamic>>.from(response);
         _facultyError = null;
@@ -67,11 +65,10 @@ class _AddStudentPageState extends State<AddStudentPage> {
 
     setState(() => _loadingClasses = true);
     try {
-      final response = await Supabase.instance.client
-          .from('classes')
-          .select('id, name, code, faculty_id')
-          .eq('faculty_id', _selectedFacultyId!)
-          .order('name');
+      final response = await ApiService.getList(
+        ApiConstants.classes,
+        queryParams: {'faculty_id': _selectedFacultyId!},
+      );
 
       setState(() {
         _classes = List<Map<String, dynamic>>.from(response);
@@ -313,28 +310,24 @@ class _AddStudentPageState extends State<AddStudentPage> {
     setState(() => _loading = true);
 
     try {
-      // 1. Tạo profile trước
-      final profileResponse = await Supabase.instance.client
-          .from('profiles')
-          .insert({
-            'code': _codeController.text.trim(),
-            'full_name': _nameController.text.trim(),
-            'email': _emailController.text.trim().isEmpty
-                ? null
-                : _emailController.text.trim(),
-            'phone': _phoneController.text.trim().isEmpty
-                ? null
-                : _phoneController.text.trim(),
-            'class_id': _selectedClassId,
-            'is_active': true,
-          })
-          .select('id')
-          .single();
+      // 1. Create profile via API
+      final profileResponse = await ApiService.create('/profiles', {
+        'code': _codeController.text.trim(),
+        'full_name': _nameController.text.trim(),
+        'email': _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+        'phone': _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        'class_id': _selectedClassId,
+        'is_active': true,
+      });
 
-      final profileId = profileResponse['id'];
+      final profileId = profileResponse['id'].toString();
 
-      // 2. Tạo student record
-      await Supabase.instance.client.from('students').insert({
+      // 2. Create student record
+      await ApiService.create(ApiConstants.students, {
         'profile_id': profileId,
         'class_id': _selectedClassId,
         'mssv': _mssvController.text.trim().isEmpty
@@ -345,8 +338,8 @@ class _AddStudentPageState extends State<AddStudentPage> {
         'mssv_serial': _mssvInfo?['serial'],
       });
 
-      // 3. Tạo user role
-      await Supabase.instance.client.from('user_roles').insert({
+      // 3. Create user role
+      await ApiService.create('/user_roles', {
         'user_id': profileId,
         'role': 'student',
       });
@@ -414,4 +407,3 @@ class _AddStudentPageState extends State<AddStudentPage> {
     super.dispose();
   }
 }
-

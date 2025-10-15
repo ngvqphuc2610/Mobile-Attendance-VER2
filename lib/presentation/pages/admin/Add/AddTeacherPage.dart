@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/constants/app_theme.dart';
 import '../../../../data/models/faculty.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class AddTeacherPage extends StatefulWidget {
   const AddTeacherPage({super.key});
@@ -34,14 +34,11 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
 
   Future<void> _loadFaculties() async {
     try {
-      final response = await Supabase.instance.client
-          .from('faculties')
-          .select()
-          .order('name');
+      final response = await ApiService.getList(ApiConstants.faculties);
 
-      _faculties = (response as List<dynamic>)
-          .map((json) => Faculty.fromJson(json))
-          .toList();
+      _faculties = List<Map<String, dynamic>>.from(
+        response,
+      ).map((json) => Faculty.fromJson(json)).toList();
       _facultyError = null;
     } catch (e) {
       _facultyError = e.toString();
@@ -66,10 +63,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Lưu',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                : const Text('Lưu', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -125,8 +119,9 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Email không hợp lệ';
                       }
                     }
@@ -156,40 +151,37 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                 _loadingFaculties
                     ? const Center(child: CircularProgressIndicator())
                     : _facultyError != null
-                        ? Text(
-                            _facultyError!,
-                            style: const TextStyle(color: Colors.red),
-                          )
-                        : DropdownButtonFormField<String?>(
-                            value: _selectedFacultyId,
-                            decoration: const InputDecoration(
-                              labelText: 'Khoa',
-                              prefixIcon: Icon(Icons.school),
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text('Chọn khoa'),
-                              ),
-                              ..._faculties.map(
-                                (faculty) => DropdownMenuItem<String?>(
-                                  value: faculty.id,
-                                  child: Text(faculty.name),
-                                ),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _selectedFacultyId = value);
-                            },
+                    ? Text(
+                        _facultyError!,
+                        style: const TextStyle(color: Colors.red),
+                      )
+                    : DropdownButtonFormField<String?>(
+                        value: _selectedFacultyId,
+                        decoration: const InputDecoration(
+                          labelText: 'Khoa',
+                          prefixIcon: Icon(Icons.school),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Chọn khoa'),
                           ),
+                          ..._faculties.map(
+                            (faculty) => DropdownMenuItem<String?>(
+                              value: faculty.id,
+                              child: Text(faculty.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() => _selectedFacultyId = value);
+                        },
+                      ),
                 const SizedBox(height: AppSizes.paddingLarge),
                 const Text(
                   '* Trường bắt buộc',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -205,9 +197,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
     setState(() => _saving = true);
 
     try {
-      final supabase = Supabase.instance.client;
-      
-      // 1. Insert vào bảng profiles trước
+      // 1. Insert profile via API
       final profileData = {
         'code': _codeController.text.trim().toUpperCase(),
         'full_name': _nameController.text.trim(),
@@ -221,15 +211,10 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
         profileData['phone'] = _phoneController.text.trim();
       }
 
-      final profileResponse = await supabase
-          .from('profiles')
-          .insert(profileData)
-          .select('id')
-          .single();
+      final profileResponse = await ApiService.create('/profiles', profileData);
+      final profileId = profileResponse['id'].toString();
 
-      final profileId = profileResponse['id'];
-
-      // 2. Insert vào bảng teachers
+      // 2. Insert into teachers table
       final teacherData = {
         'profile_id': profileId,
         'faculty_id': _selectedFacultyId,
@@ -242,7 +227,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
         teacherData['office'] = _officeController.text.trim();
       }
 
-      await supabase.from('teachers').insert(teacherData);
+      await ApiService.create(ApiConstants.teachers, teacherData);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -262,12 +247,9 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
           errorMessage = 'Email đã tồn tại!';
         }
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -283,5 +265,3 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
     super.dispose();
   }
 }
-
-

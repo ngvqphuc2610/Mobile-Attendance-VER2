@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/constants/app_theme.dart';
 import '../../../../data/models/faculty.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class EditTeacherPage extends StatefulWidget {
   final Map<String, dynamic> teacher;
@@ -45,14 +45,11 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
 
   Future<void> _loadFaculties() async {
     try {
-      final response = await Supabase.instance.client
-          .from('faculties')
-          .select()
-          .order('name');
+      final response = await ApiService.getList(ApiConstants.faculties);
 
-      _faculties = (response as List<dynamic>)
-          .map((json) => Faculty.fromJson(json))
-          .toList();
+      _faculties = List<Map<String, dynamic>>.from(
+        response,
+      ).map((json) => Faculty.fromJson(json)).toList();
       _facultyError = null;
     } catch (e) {
       _facultyError = e.toString();
@@ -77,10 +74,7 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Cập nhật',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                : const Text('Cập nhật', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -133,8 +127,9 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Email không hợp lệ';
                       }
                     }
@@ -163,33 +158,33 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                 _loadingFaculties
                     ? const Center(child: CircularProgressIndicator())
                     : _facultyError != null
-                        ? Text(
-                            _facultyError!,
-                            style: const TextStyle(color: Colors.red),
-                          )
-                        : DropdownButtonFormField<String?>(
-                            value: _selectedFacultyId,
-                            decoration: const InputDecoration(
-                              labelText: 'Khoa',
-                              prefixIcon: Icon(Icons.school),
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text('Chọn khoa'),
-                              ),
-                              ..._faculties.map(
-                                (faculty) => DropdownMenuItem<String?>(
-                                  value: faculty.id,
-                                  child: Text(faculty.name),
-                                ),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _selectedFacultyId = value);
-                            },
+                    ? Text(
+                        _facultyError!,
+                        style: const TextStyle(color: Colors.red),
+                      )
+                    : DropdownButtonFormField<String?>(
+                        value: _selectedFacultyId,
+                        decoration: const InputDecoration(
+                          labelText: 'Khoa',
+                          prefixIcon: Icon(Icons.school),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Chọn khoa'),
                           ),
+                          ..._faculties.map(
+                            (faculty) => DropdownMenuItem<String?>(
+                              value: faculty.id,
+                              child: Text(faculty.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() => _selectedFacultyId = value);
+                        },
+                      ),
                 const SizedBox(height: AppSizes.paddingLarge),
                 const Text(
                   '* Trường bắt buộc',
@@ -209,8 +204,6 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
     setState(() => _saving = true);
 
     try {
-      final supabase = Supabase.instance.client;
-
       final Map<String, dynamic> profileData = {
         'code': _codeController.text.trim().toUpperCase(),
         'full_name': _nameController.text.trim(),
@@ -228,29 +221,32 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
         profileData['phone'] = null;
       }
 
-      await supabase
-          .from('profiles')
-          .update(profileData)
-          .eq('id', widget.teacher['id']);
+      await ApiService.update(
+        'profiles',
+        widget.teacher['id'].toString(),
+        profileData,
+      );
 
       final Map<String, dynamic> teacherData = {
         'faculty_id': _selectedFacultyId,
       };
 
-      final existingTeacher = await supabase
-          .from('teachers')
-          .select('profile_id')
-          .eq('profile_id', widget.teacher['id'])
-          .maybeSingle();
+      final existingTeacherList = await ApiService.getList(
+        ApiConstants.teachers,
+        queryParams: {'profile_id': widget.teacher['id'].toString()},
+      );
 
-      if (existingTeacher != null) {
-        await supabase
-            .from('teachers')
-            .update(teacherData)
-            .eq('profile_id', widget.teacher['id']);
+      if (existingTeacherList.isNotEmpty) {
+        // Update the first matched teacher record
+        final existing = existingTeacherList.first;
+        await ApiService.update(
+          ApiConstants.teachers,
+          existing['id'].toString(),
+          teacherData,
+        );
       } else {
         teacherData['profile_id'] = widget.teacher['id'];
-        await supabase.from('teachers').insert(teacherData);
+        await ApiService.create(ApiConstants.teachers, teacherData);
       }
 
       if (!mounted) return;
@@ -273,10 +269,7 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
@@ -294,4 +287,3 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
     super.dispose();
   }
 }
-

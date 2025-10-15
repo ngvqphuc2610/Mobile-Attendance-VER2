@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_theme.dart';
 import '../../../../data/services/account_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class EditAccountPage extends StatefulWidget {
   final Map<String, dynamic> account;
-  
+
   const EditAccountPage({super.key, required this.account});
 
   @override
@@ -14,8 +15,8 @@ class EditAccountPage extends StatefulWidget {
 
 class _EditAccountPageState extends State<EditAccountPage> {
   final _formKey = GlobalKey<FormState>();
-  final _accountService = AccountService();
-  
+  // Use static methods on AccountService
+
   // Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -25,11 +26,11 @@ class _EditAccountPageState extends State<EditAccountPage> {
   final _mssvController = TextEditingController();
   final _titleController = TextEditingController();
   final _officeController = TextEditingController();
-  
+
   String _selectedRole = 'student';
   String? _selectedClassId;
   String? _selectedFacultyId;
-  
+
   List<Map<String, dynamic>> _classes = [];
   List<Map<String, dynamic>> _faculties = [];
   bool _loading = false;
@@ -45,18 +46,18 @@ class _EditAccountPageState extends State<EditAccountPage> {
 
   void _populateFields() {
     final account = widget.account;
-    
+
     _emailController.text = account['email'] ?? '';
     _fullNameController.text = account['full_name'] ?? '';
     _codeController.text = account['code'] ?? '';
     _phoneController.text = account['phone'] ?? '';
-    
+
     // Get role
     final userRoles = account['user_roles'] as List?;
     if (userRoles != null && userRoles.isNotEmpty) {
       _selectedRole = userRoles.first['role'] ?? 'student';
     }
-    
+
     // Student data
     final students = account['students'] as List?;
     if (students != null && students.isNotEmpty) {
@@ -64,7 +65,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
       _mssvController.text = student['mssv'] ?? '';
       _selectedClassId = student['class_id'];
     }
-    
+
     // Teacher data
     final teachers = account['teachers'] as List?;
     if (teachers != null && teachers.isNotEmpty) {
@@ -77,30 +78,23 @@ class _EditAccountPageState extends State<EditAccountPage> {
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
-    
+
     try {
-      final supabase = Supabase.instance.client;
-      
-      // Load classes and faculties
-      final classesResponse = await supabase
-          .from('classes')
-          .select('id, name, code')
-          .order('name');
-      
-      final facultiesResponse = await supabase
-          .from('faculties')
-          .select('id, name, code')
-          .order('name');
-      
+      // Load classes and faculties via ApiService
+      final classesResponse = await ApiService.getList(ApiConstants.classes);
+      final facultiesResponse = await ApiService.getList(
+        ApiConstants.faculties,
+      );
+
       setState(() {
         _classes = List<Map<String, dynamic>>.from(classesResponse);
         _faculties = List<Map<String, dynamic>>.from(facultiesResponse);
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải dữ liệu: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi tải dữ liệu: $e')));
       }
     } finally {
       setState(() => _loading = false);
@@ -121,10 +115,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Lưu',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                : const Text('Lưu', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -146,9 +137,18 @@ class _EditAccountPageState extends State<EditAccountPage> {
                           border: OutlineInputBorder(),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'student', child: Text('Sinh viên')),
-                          DropdownMenuItem(value: 'teacher', child: Text('Giáo viên')),
-                          DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
+                          DropdownMenuItem(
+                            value: 'student',
+                            child: Text('Sinh viên'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'teacher',
+                            child: Text('Giáo viên'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'admin',
+                            child: Text('Quản trị viên'),
+                          ),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -173,7 +173,9 @@ class _EditAccountPageState extends State<EditAccountPage> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Vui lòng nhập email';
                           }
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
                             return 'Email không hợp lệ';
                           }
                           return null;
@@ -184,13 +186,15 @@ class _EditAccountPageState extends State<EditAccountPage> {
                       // Password reset
                       CheckboxListTile(
                         title: const Text('Reset mật khẩu'),
-                        subtitle: const Text('Đặt lại mật khẩu cho tài khoản này'),
+                        subtitle: const Text(
+                          'Đặt lại mật khẩu cho tài khoản này',
+                        ),
                         value: _resetPassword,
                         onChanged: (value) {
                           setState(() => _resetPassword = value ?? false);
                         },
                       ),
-                      
+
                       if (_resetPassword) ...[
                         const SizedBox(height: AppSizes.paddingMedium),
                         TextFormField(
@@ -202,7 +206,8 @@ class _EditAccountPageState extends State<EditAccountPage> {
                           ),
                           obscureText: true,
                           validator: (value) {
-                            if (_resetPassword && (value == null || value.length < 6)) {
+                            if (_resetPassword &&
+                                (value == null || value.length < 6)) {
                               return 'Mật khẩu phải có ít nhất 6 ký tự';
                             }
                             return null;
@@ -231,7 +236,9 @@ class _EditAccountPageState extends State<EditAccountPage> {
                       TextFormField(
                         controller: _codeController,
                         decoration: InputDecoration(
-                          labelText: _selectedRole == 'student' ? 'Mã sinh viên *' : 'Mã nhân viên *',
+                          labelText: _selectedRole == 'student'
+                              ? 'Mã sinh viên *'
+                              : 'Mã nhân viên *',
                           prefixIcon: const Icon(Icons.badge),
                           border: const OutlineInputBorder(),
                         ),
@@ -268,7 +275,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
                           keyboardType: TextInputType.number,
                         ),
                         const SizedBox(height: AppSizes.paddingMedium),
-                        
+
                         DropdownButtonFormField<String>(
                           value: _selectedClassId,
                           decoration: const InputDecoration(
@@ -277,13 +284,19 @@ class _EditAccountPageState extends State<EditAccountPage> {
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('Chọn lớp')),
-                            ..._classes.map((cls) => DropdownMenuItem(
-                              value: cls['id'],
-                              child: Text('${cls['code']} - ${cls['name']}'),
-                            )),
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('Chọn lớp'),
+                            ),
+                            ..._classes.map(
+                              (cls) => DropdownMenuItem(
+                                value: cls['id'],
+                                child: Text('${cls['code']} - ${cls['name']}'),
+                              ),
+                            ),
                           ],
-                          onChanged: (value) => setState(() => _selectedClassId = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedClassId = value),
                         ),
                       ],
 
@@ -296,16 +309,24 @@ class _EditAccountPageState extends State<EditAccountPage> {
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('Chọn khoa')),
-                            ..._faculties.map((faculty) => DropdownMenuItem(
-                              value: faculty['id'],
-                              child: Text('${faculty['code']} - ${faculty['name']}'),
-                            )),
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('Chọn khoa'),
+                            ),
+                            ..._faculties.map(
+                              (faculty) => DropdownMenuItem(
+                                value: faculty['id'],
+                                child: Text(
+                                  '${faculty['code']} - ${faculty['name']}',
+                                ),
+                              ),
+                            ),
                           ],
-                          onChanged: (value) => setState(() => _selectedFacultyId = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedFacultyId = value),
                         ),
                         const SizedBox(height: AppSizes.paddingMedium),
-                        
+
                         TextFormField(
                           controller: _titleController,
                           decoration: const InputDecoration(
@@ -315,7 +336,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
                           ),
                         ),
                         const SizedBox(height: AppSizes.paddingMedium),
-                        
+
                         TextFormField(
                           controller: _officeController,
                           decoration: const InputDecoration(
@@ -345,23 +366,29 @@ class _EditAccountPageState extends State<EditAccountPage> {
     setState(() => _saving = true);
 
     try {
-      await _accountService.updateAccount(
+      await AccountService.updateAccount(
         userId: widget.account['id'],
         email: _emailController.text.trim(),
         password: _resetPassword ? _passwordController.text : null,
         fullName: _fullNameController.text.trim(),
         code: _codeController.text.trim(),
         role: _selectedRole,
-        phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
         classId: _selectedClassId,
-        mssv: _mssvController.text.trim().isEmpty ? null : _mssvController.text.trim(),
+        mssv: _mssvController.text.trim().isEmpty
+            ? null
+            : _mssvController.text.trim(),
         facultyId: _selectedFacultyId,
-        title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-        office: _officeController.text.trim().isEmpty ? null : _officeController.text.trim(),
+        title: _titleController.text.trim().isEmpty
+            ? null
+            : _titleController.text.trim(),
+        office: _officeController.text.trim().isEmpty
+            ? null
+            : _officeController.text.trim(),
         resetPassword: _resetPassword,
-        newEmail: _emailController.text.trim() != widget.account['email'] 
-            ? _emailController.text.trim() 
-            : null,
+        newEmail: _emailController.text.trim() != widget.account['email'],
       );
 
       if (mounted) {
@@ -376,10 +403,7 @@ class _EditAccountPageState extends State<EditAccountPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {

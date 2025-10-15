@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_theme.dart';
-import '../../../data/models/class_model.dart';
-import 'add/AddStudentPage.dart';
-import 'edit/EditStudentPage.dart';
+import '../../../data/services/api_service.dart';
+import '../../../core/constants/api_constants.dart';
+// removed unused imports
+import '../../widgets/loading_widget.dart';
 
 class AdminStudent extends StatefulWidget {
   const AdminStudent({super.key});
@@ -16,39 +16,14 @@ class _AdminStudentState extends State<AdminStudent> {
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _filteredStudents = [];
-  List<Map<String, dynamic>> _faculties = [];
   List<Map<String, dynamic>> _classes = [];
   bool _loading = true;
   String? _error;
-  String? _selectedFacultyFilter;
-  String? _selectedClassFilter;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _loadFilters();
-  }
-
-  Future<void> _loadFilters() async {
-    try {
-      final facultiesResponse = await Supabase.instance.client
-          .from('faculties')
-          .select('id, name')
-          .order('name');
-
-      final classesResponse = await Supabase.instance.client
-          .from('classes')
-          .select('id, name, faculty_id')
-          .order('name');
-
-      setState(() {
-        _faculties = List<Map<String, dynamic>>.from(facultiesResponse);
-        _classes = List<Map<String, dynamic>>.from(classesResponse);
-      });
-    } catch (e) {
-      print('Error loading filters: $e');
-    }
   }
 
   Future<void> _loadData() async {
@@ -58,32 +33,13 @@ class _AdminStudentState extends State<AdminStudent> {
     });
 
     try {
-      final studentsResponse = await Supabase.instance.client
-          .from('students')
-          .select('''
-            *,
-            profiles!inner (
-              id,
-              code,
-              full_name,
-              email,
-              phone,
-              is_active
-            ),
-            classes (
-              id,
-              name,
-              faculty_id,
-              faculties (
-                id,
-                name
-              )
-            )
-          ''')
-          .order('profiles(full_name)');
+      // Load students and classes
+      final studentsResponse = await ApiService.getList(ApiConstants.students);
+      final classesResponse = await ApiService.getList(ApiConstants.classes);
 
       _students = List<Map<String, dynamic>>.from(studentsResponse);
-      _applyFilters();
+      _classes = List<Map<String, dynamic>>.from(classesResponse);
+      _filteredStudents = _students;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -91,241 +47,209 @@ class _AdminStudentState extends State<AdminStudent> {
     }
   }
 
-  void _applyFilters() {
-    List<Map<String, dynamic>> filtered = _students;
-
-    // Filter by search query
-    final query = _searchController.text.toLowerCase();
-    if (query.isNotEmpty) {
-      filtered = filtered.where((student) {
-        final profile = student['profiles'] ?? {};
-        final name = profile['full_name']?.toString().toLowerCase() ?? '';
-        final code = profile['code']?.toString().toLowerCase() ?? '';
-        final mssv = student['mssv']?.toString().toLowerCase() ?? '';
-        final className =
-            student['classes']?['name']?.toString().toLowerCase() ?? '';
-
-        return name.contains(query) ||
-            code.contains(query) ||
-            mssv.contains(query) ||
-            className.contains(query);
-      }).toList();
-    }
-
-    // Filter by faculty
-    if (_selectedFacultyFilter != null) {
-      filtered = filtered.where((student) {
-        return student['classes']?['faculty_id'] == _selectedFacultyFilter;
-      }).toList();
-    }
-
-    // Filter by class
-    if (_selectedClassFilter != null) {
-      filtered = filtered.where((student) {
-        return student['class_id'] == _selectedClassFilter;
-      }).toList();
-    }
-
+  void _filterStudents(String query) {
     setState(() {
-      _filteredStudents = filtered;
+      if (query.isEmpty) {
+        _filteredStudents = _students;
+      } else {
+        _filteredStudents = _students.where((student) {
+          return student['full_name']?.toLowerCase().contains(
+                    query.toLowerCase(),
+                  ) ==
+                  true ||
+              student['code']?.toLowerCase().contains(query.toLowerCase()) ==
+                  true ||
+              student['mssv']?.toLowerCase().contains(query.toLowerCase()) ==
+                  true;
+        }).toList();
+      }
     });
   }
 
-  Future<void> _navigateToAdd() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AddStudentPage()),
+  Future<void> _showAddEditDialog([Map<String, dynamic>? student]) async {
+    final codeController = TextEditingController(text: student?['code'] ?? '');
+    final nameController = TextEditingController(
+      text: student?['full_name'] ?? '',
     );
-
-    if (result == true) {
-      _loadData();
-    }
-  }
-
-  Future<void> _navigateToEdit(Map<String, dynamic> student) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditStudentPage(student: student),
-      ),
+    final emailController = TextEditingController(
+      text: student?['email'] ?? '',
     );
+    final phoneController = TextEditingController(
+      text: student?['phone'] ?? '',
+    );
+    final mssvController = TextEditingController(text: student?['mssv'] ?? '');
+    final passwordController = TextEditingController();
 
-    if (result == true) {
-      _loadData();
-    }
-  }
+    String? selectedClassId = student?['class_id'];
+    final formKey = GlobalKey<FormState>();
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quản lý Sinh viên'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _navigateToAdd),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(AppSizes.paddingMedium),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: 'Tìm kiếm sinh viên...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (_) => _applyFilters(),
-            ),
-          ),
-
-          // Filters
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSizes.paddingMedium,
-            ),
-            child: Row(
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(student == null ? 'Thêm sinh viên' : 'Sửa sinh viên'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedFacultyFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Khoa',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Tất cả khoa'),
-                      ),
-                      ..._faculties.map(
-                        (faculty) => DropdownMenuItem(
-                          value: faculty['id'],
-                          child: Text(faculty['name']),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFacultyFilter = value;
-                        _selectedClassFilter = null;
-                      });
-                      _applyFilters();
-                    },
+                TextFormField(
+                  controller: codeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Mã sinh viên',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập mã sinh viên';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Họ tên',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập họ tên';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Email không hợp lệ';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Số điện thoại',
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedClassFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Lớp',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Tất cả lớp'),
-                      ),
-                      ..._classes
-                          .where(
-                            (cls) =>
-                                _selectedFacultyFilter == null ||
-                                cls['faculty_id'] == _selectedFacultyFilter,
-                          )
-                          .map(
-                            (cls) => DropdownMenuItem(
-                              value: cls['id'],
-                              child: Text(cls['name']),
-                            ),
-                          ),
-                    ],
-                    onChanged: (value) {
-                      setState(() => _selectedClassFilter = value);
-                      _applyFilters();
-                    },
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: mssvController,
+                  decoration: const InputDecoration(
+                    labelText: 'MSSV',
+                    border: OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String?>(
+                  value: selectedClassId,
+                  decoration: const InputDecoration(
+                    labelText: 'Lớp học',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Chọn lớp học'),
+                    ),
+                    ..._classes.map(
+                      (cls) => DropdownMenuItem<String?>(
+                        value: cls['id'],
+                        child: Text('${cls['code']} - ${cls['name']}'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    selectedClassId = value;
+                  },
+                ),
+                if (student == null) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Mật khẩu (để trống = 123456)',
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                  ),
+                ],
               ],
             ),
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                try {
+                  final data = {
+                    'code': codeController.text.trim(),
+                    'full_name': nameController.text.trim(),
+                    'email': emailController.text.trim(),
+                    'phone': phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    'class_id': selectedClassId,
+                    'mssv': mssvController.text.trim().isEmpty
+                        ? null
+                        : mssvController.text.trim(),
+                  };
 
-          const SizedBox(height: AppSizes.paddingMedium),
-
-          // Content
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                ? Center(child: Text('Lỗi: $_error'))
-                : _filteredStudents.isEmpty
-                ? const Center(child: Text('Không có sinh viên nào'))
-                : ListView.builder(
-                    itemCount: _filteredStudents.length,
-                    itemBuilder: (context, index) {
-                      final student = _filteredStudents[index];
-                      final profile = student['profiles'] ?? {};
-                      final className =
-                          student['classes']?['name'] ?? 'Chưa có lớp';
-                      final facultyName =
-                          student['classes']?['faculties']?['name'] ??
-                          'Chưa có khoa';
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingMedium,
-                          vertical: AppSizes.paddingSmall,
-                        ),
-                        child: ListTile(
-                          title: Text(profile['full_name'] ?? ''),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Mã: ${profile['code'] ?? ''}'),
-                              if (student['mssv'] != null)
-                                Text('MSSV: ${student['mssv']}'),
-                              Text('Lớp: $className'),
-                              Text('Khoa: $facultyName'),
-                            ],
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) =>
-                                _handleMenuAction(value, student),
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Sửa'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Xóa'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  if (student == null) {
+                    data['password'] = passwordController.text.trim().isEmpty
+                        ? '123456'
+                        : passwordController.text.trim();
+                    await ApiService.create(ApiConstants.students, data);
+                  } else {
+                    await ApiService.update(
+                      ApiConstants.students,
+                      student['profile_id'].toString(),
+                      data,
+                    );
+                  }
+                  Navigator.pop(ctx, true);
+                } catch (e) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                }
+              }
+            },
+            child: Text(student == null ? 'Thêm' : 'Cập nhật'),
           ),
         ],
       ),
     );
-  }
 
-  Future<void> _handleMenuAction(
-    String action,
-    Map<String, dynamic> student,
-  ) async {
-    switch (action) {
-      case 'edit':
-        await _navigateToEdit(student);
-        break;
-      case 'delete':
-        await _confirmDelete(student);
-        break;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            student == null
+                ? 'Thêm sinh viên thành công'
+                : 'Cập nhật sinh viên thành công',
+          ),
+        ),
+      );
+      _loadData();
     }
   }
 
@@ -353,11 +277,10 @@ class _AdminStudentState extends State<AdminStudent> {
 
     if (confirm == true) {
       try {
-        await Supabase.instance.client
-            .from('profiles')
-            .delete()
-            .eq('id', student['profile_id']);
-
+        await ApiService.delete(
+          ApiConstants.students,
+          student['profile_id'].toString(),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Xóa sinh viên thành công')),
         );
@@ -368,6 +291,140 @@ class _AdminStudentState extends State<AdminStudent> {
         ).showSnackBar(SnackBar(content: Text('Lỗi xóa sinh viên: $e')));
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Quản lý sinh viên'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddEditDialog(),
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.all(AppSizes.paddingMedium),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                hintText: 'Tìm kiếm sinh viên...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: _filterStudents,
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: _loading
+                ? const LoadingWidget(
+                    message: 'Đang tải danh sách sinh viên...',
+                  )
+                : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadData,
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _filteredStudents.isEmpty
+                ? const Center(child: Text('Không có sinh viên nào'))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(AppSizes.paddingMedium),
+                    itemCount: _filteredStudents.length,
+                    itemBuilder: (context, index) {
+                      final student = _filteredStudents[index];
+                      return Card(
+                        margin: const EdgeInsets.only(
+                          bottom: AppSizes.paddingSmall,
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.primary,
+                            child: Text(
+                              student['full_name']?.isNotEmpty == true
+                                  ? student['full_name'][0].toUpperCase()
+                                  : 'SV',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            student['full_name'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Mã: ${student['code'] ?? ''}'),
+                              if (student['mssv'] != null)
+                                Text('MSSV: ${student['mssv']}'),
+                              if (student['class_name'] != null)
+                                Text('Lớp: ${student['class_name']}'),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'edit':
+                                  _showAddEditDialog(student);
+                                  break;
+                                case 'delete':
+                                  _confirmDelete(student);
+                                  break;
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: Icon(Icons.edit),
+                                  title: Text('Sửa'),
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  title: Text(
+                                    'Xóa',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

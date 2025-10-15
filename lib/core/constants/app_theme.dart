@@ -53,3 +53,24 @@ class AppSizes {
   static const double buttonHeight = 48.0;
   static const double buttonSmallHeight = 36.0;
 }
+
+class AppTheme {
+  // Màu chủ đạo
+  static const primaryColor = Color(0xFF2563EB); // blue-600
+  static const secondaryColor = Color(0xFF9333EA); // purple-600
+
+  // ThemeData (dùng luôn cho MaterialApp)
+  static ThemeData lightTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: primaryColor),
+      scaffoldBackgroundColor: const Color(0xFFF7F7F7),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      ),
+    );
+  }
+}

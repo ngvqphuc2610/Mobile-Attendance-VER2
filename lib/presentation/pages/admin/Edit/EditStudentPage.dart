@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_theme.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class EditStudentPage extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -54,10 +55,7 @@ class _EditStudentPageState extends State<EditStudentPage> {
   Future<void> _loadClasses() async {
     setState(() => _loadingClasses = true);
     try {
-      final response = await Supabase.instance.client
-          .from('classes')
-          .select('id, name, code')
-          .order('name');
+      final response = await ApiService.getList(ApiConstants.classes);
 
       setState(() {
         _classes = List<Map<String, dynamic>>.from(response);
@@ -248,34 +246,36 @@ class _EditStudentPageState extends State<EditStudentPage> {
 
     try {
       // 1. Update profile
-      await Supabase.instance.client
-          .from('profiles')
-          .update({
-            'code': _codeController.text.trim(),
-            'full_name': _nameController.text.trim(),
-            'email': _emailController.text.trim().isEmpty
-                ? null
-                : _emailController.text.trim(),
-            'phone': _phoneController.text.trim().isEmpty
-                ? null
-                : _phoneController.text.trim(),
-            'class_id': _selectedClassId,
-          })
-          .eq('id', widget.student['profile_id']);
+      await ApiService.update(
+        'profiles',
+        widget.student['profile_id'].toString(),
+        {
+          'code': _codeController.text.trim(),
+          'full_name': _nameController.text.trim(),
+          'email': _emailController.text.trim().isEmpty
+              ? null
+              : _emailController.text.trim(),
+          'phone': _phoneController.text.trim().isEmpty
+              ? null
+              : _phoneController.text.trim(),
+          'class_id': _selectedClassId,
+        },
+      );
 
       // 2. Update student record
-      await Supabase.instance.client
-          .from('students')
-          .update({
-            'class_id': _selectedClassId,
-            'mssv': _mssvController.text.trim().isEmpty
-                ? null
-                : _mssvController.text.trim(),
-            'mssv_cohort': _mssvInfo?['cohort'],
-            'mssv_track_code': _mssvInfo?['track_code'],
-            'mssv_serial': _mssvInfo?['serial'],
-          })
-          .eq('profile_id', widget.student['profile_id']);
+      await ApiService.update(
+        ApiConstants.students,
+        widget.student['profile_id'].toString(),
+        {
+          'class_id': _selectedClassId,
+          'mssv': _mssvController.text.trim().isEmpty
+              ? null
+              : _mssvController.text.trim(),
+          'mssv_cohort': _mssvInfo?['cohort'],
+          'mssv_track_code': _mssvInfo?['track_code'],
+          'mssv_serial': _mssvInfo?['serial'],
+        },
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cập nhật sinh viên thành công')),

@@ -1,0 +1,461 @@
+-- Tạo database
+CREATE DATABASE IF NOT EXISTS mbattendance CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE mbattendance;
+
+-- ENUM tương đương
+-- (Có thể tạo trực tiếp trong bảng)
+-- CREATE TYPE không tồn tại trong MySQL.
+
+-- Bảng chính
+
+CREATE TABLE profiles (
+  id            CHAR(36) NOT NULL DEFAULT (UUID()),
+  code          TEXT NOT NULL,
+  full_name     TEXT NOT NULL,
+  class_id      CHAR(36) NULL,
+  is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  email         TEXT NULL,
+  phone         TEXT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY profiles_code_uq ((CAST(code AS CHAR(255)))),
+  KEY idx_profiles_class (class_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE faculties (
+  id         CHAR(36) NOT NULL DEFAULT (UUID()),
+  code       TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY faculties_code_uq ((CAST(code AS CHAR(255)))),
+  KEY idx_faculties_code ((CAST(code AS CHAR(255)))),
+  KEY idx_faculties_name ((CAST(name AS CHAR(255))))
+) ENGINE=InnoDB;
+
+CREATE TABLE cohorts (
+  id   CHAR(36) NOT NULL DEFAULT (UUID()),
+  year SMALLINT NOT NULL,
+  name TEXT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY cohorts_year_uq (year)
+) ENGINE=InnoDB;
+
+CREATE TABLE classes (
+  id         CHAR(36) NOT NULL DEFAULT (UUID()),
+  code       TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  faculty_id CHAR(36) NULL,
+  cohort_id  CHAR(36) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY classes_code_uq ((CAST(code AS CHAR(255)))),
+  KEY classes_cohort_id_idx (cohort_id),
+  CONSTRAINT classes_faculty_fk FOREIGN KEY (faculty_id) REFERENCES faculties(id) ON DELETE SET NULL,
+  CONSTRAINT classes_cohort_fk  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id)
+) ENGINE=InnoDB;
+
+ALTER TABLE profiles
+  ADD CONSTRAINT profiles_class_fk FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL;
+
+CREATE TABLE program_tracks (
+  id   CHAR(36) NOT NULL DEFAULT (UUID()),
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY program_tracks_code_uq ((CAST(code AS CHAR(255))))
+) ENGINE=InnoDB;
+
+CREATE TABLE mssv_scheme_rules (
+  id               CHAR(36) NOT NULL DEFAULT (UUID()),
+  cohort_from      SMALLINT NOT NULL,
+  cohort_to        SMALLINT NOT NULL,
+  track_code       TEXT NOT NULL,
+  faculty_id       CHAR(36) NULL,
+  program_track_id CHAR(36) NOT NULL,
+  priority         INT NOT NULL DEFAULT 100,
+  active           TINYINT(1) NOT NULL DEFAULT 1,
+  note             TEXT NULL,
+  PRIMARY KEY (id),
+  KEY mssv_rules_cohort_idx (cohort_from, cohort_to),
+  KEY mssv_rules_faculty_idx (faculty_id),
+  KEY mssv_rules_priority_idx (priority),
+  KEY mssv_rules_pt_idx (program_track_id),
+  KEY mssv_rules_track_idx ((CAST(track_code AS CHAR(255)))),
+  CONSTRAINT mssv_rules_faculty_fk FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+  CONSTRAINT mssv_rules_program_track_fk FOREIGN KEY (program_track_id) REFERENCES program_tracks(id)
+) ENGINE=InnoDB;
+
+
+CREATE TABLE mssv_serial_counters (
+  cohort_year SMALLINT NOT NULL,
+  track_code  VARCHAR(64) NOT NULL,
+  faculty_id  CHAR(36) NOT NULL,
+  next_serial INT NOT NULL DEFAULT 1,
+  PRIMARY KEY (cohort_year, faculty_id, track_code),
+  KEY idx_serial_faculty (faculty_id)
+) ENGINE=InnoDB;
+
+
+CREATE TABLE face_embeddings (
+  user_id     CHAR(36) NOT NULL,
+  vectors     JSON NOT NULL,                 -- array các vector (mỗi vector là mảng số)
+  samples_count INT AS (JSON_LENGTH(vectors)) STORED,
+  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fe_user_fk FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_roles (
+  user_id    CHAR(36) NOT NULL,
+  role       ENUM('student','teacher','admin') NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT ur_profile_fk FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Attendance + enum
+CREATE TABLE attendance (
+  id               BIGINT NOT NULL AUTO_INCREMENT,
+  user_id          CHAR(36) NULL,
+  method           ENUM('face','barcode','manual') NOT NULL,
+  confidence_score DOUBLE NULL,
+  at_time          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  note             TEXT NULL,
+  PRIMARY KEY (id),
+  KEY idx_attendance_method (method),
+  KEY idx_attendance_user_time (user_id, at_time DESC),
+  KEY idx_attendance_time_range (at_time),
+  CONSTRAINT attendance_user_fk FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL,
+  CONSTRAINT attendance_confidence_chk CHECK (confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1))
+) ENGINE=InnoDB;
+
+-- Students / Teachers
+CREATE TABLE students (
+  profile_id      CHAR(36) NOT NULL,
+  class_id        CHAR(36) NULL,
+  mssv            TEXT NULL,
+  mssv_cohort     SMALLINT NULL,
+  mssv_track_code TEXT NULL,
+  mssv_serial     INT NULL,
+  PRIMARY KEY (profile_id),
+  UNIQUE KEY students_mssv_uq ((CAST(mssv AS CHAR(255)))),
+  CONSTRAINT students_profile_fk FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT students_class_fk   FOREIGN KEY (class_id)   REFERENCES classes(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE teachers (
+  profile_id CHAR(36) NOT NULL,
+  faculty_id CHAR(36) NULL,
+  title      TEXT NULL,
+  office     TEXT NULL,
+  PRIMARY KEY (profile_id),
+  CONSTRAINT teachers_profile_fk FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT teachers_faculty_fk FOREIGN KEY (faculty_id) REFERENCES faculties(id)
+) ENGINE=InnoDB;
+
+-- Phần “học phần / lịch học” bổ sung
+CREATE TABLE subjects (
+  id      CHAR(36) NOT NULL DEFAULT (UUID()),
+  code    TEXT NOT NULL,
+  name    TEXT NOT NULL,
+  credits SMALLINT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY subjects_code_uq ((CAST(code AS CHAR(255))))
+) ENGINE=InnoDB;
+
+CREATE TABLE rooms (
+  id       CHAR(36) NOT NULL DEFAULT (UUID()),
+  code     TEXT NOT NULL,
+  name     TEXT NOT NULL,
+  capacity INT NULL,
+  location TEXT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY rooms_code_uq ((CAST(code AS CHAR(255))))
+) ENGINE=InnoDB;
+
+CREATE TABLE class_sections (
+  id           CHAR(36) NOT NULL DEFAULT (UUID()),
+  subject_id   CHAR(36) NOT NULL,
+  semester     SMALLINT NOT NULL,
+  year         SMALLINT NOT NULL,
+  section_code TEXT NOT NULL,
+  capacity     INT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY class_sections_uq (subject_id, year, semester, (CAST(section_code AS CHAR(255)))),
+  CONSTRAINT cs_subject_fk FOREIGN KEY (subject_id) REFERENCES subjects(id)
+) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS teaching_assignments;
+CREATE TABLE teaching_assignments (
+  section_id CHAR(36) NOT NULL,
+  teacher_id CHAR(36) NOT NULL,
+  role  VARCHAR(32) NOT NULL DEFAULT 'lecturer',
+  PRIMARY KEY (section_id, teacher_id),
+  CONSTRAINT ta_section_fk FOREIGN KEY (section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT ta_teacher_fk FOREIGN KEY (teacher_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE section_schedules (
+  id          CHAR(36) NOT NULL DEFAULT (UUID()),
+  section_id  CHAR(36) NOT NULL,
+  day_of_week SMALLINT NOT NULL,
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  room_id     CHAR(36) NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT ss_day_chk CHECK (day_of_week BETWEEN 1 AND 7),
+  CONSTRAINT ss_time_chk CHECK (end_time > start_time),
+  CONSTRAINT ss_section_fk FOREIGN KEY (section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT ss_room_fk    FOREIGN KEY (room_id)    REFERENCES rooms(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE enrollments (
+  section_id CHAR(36) NOT NULL,
+  student_id CHAR(36) NOT NULL,
+  PRIMARY KEY (section_id, student_id),
+  CONSTRAINT en_section_fk FOREIGN KEY (section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT en_student_fk FOREIGN KEY (student_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE session_instances (
+  id         CHAR(36) NOT NULL DEFAULT (UUID()),
+  section_id CHAR(36) NOT NULL,
+  starts_at  TIMESTAMP NOT NULL,
+  ends_at    TIMESTAMP NOT NULL,
+  room_id    CHAR(36) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'planned',
+  PRIMARY KEY (id),
+  UNIQUE KEY session_instances_unique (section_id, starts_at),
+  KEY session_instances_section_time_idx (section_id, starts_at),
+  CONSTRAINT si_time_chk CHECK (ends_at > starts_at),
+  CONSTRAINT si_section_fk FOREIGN KEY (section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT si_room_fk    FOREIGN KEY (room_id)    REFERENCES rooms(id)
+) ENGINE=InnoDB;
+
+-- Liên kết attendance với section/session
+ALTER TABLE attendance
+  ADD COLUMN section_id CHAR(36) NULL,
+  ADD COLUMN session_id CHAR(36) NULL,
+  ADD KEY idx_attendance_session_user (session_id, user_id),
+  ADD KEY idx_attendance_section_time (section_id, at_time),
+  ADD CONSTRAINT attendance_section_fk FOREIGN KEY (section_id) REFERENCES class_sections(id),
+  ADD CONSTRAINT attendance_session_fk FOREIGN KEY (session_id) REFERENCES session_instances(id);
+  
+  
+  DELIMITER $$
+
+CREATE TABLE accounts (
+  id               CHAR(36) NOT NULL DEFAULT (UUID()),
+  profile_id       CHAR(36) NOT NULL,                     -- 1-1 tới profiles
+  email            VARCHAR(191) NOT NULL,                 -- email đăng nhập
+  username         VARCHAR(50)  NULL,                     -- tuỳ chọn
+  password_hash    VARCHAR(255) NOT NULL,                 -- bcrypt/argon2
+  is_active        TINYINT(1) NOT NULL DEFAULT 1,
+  is_email_verified TINYINT(1) NOT NULL DEFAULT 0,
+  last_login_at    DATETIME NULL,
+  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_accounts_email (email),
+  UNIQUE KEY uq_accounts_username (username),             -- nếu dùng username
+  UNIQUE KEY uq_accounts_profile (profile_id),            -- 1 profile ↔ 1 account
+  CONSTRAINT fk_accounts_profile
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE password_reset_tokens (
+  id          CHAR(36) NOT NULL DEFAULT (UUID()),
+  account_id  CHAR(36) NOT NULL,
+  token_hash  VARCHAR(255) NOT NULL,     -- lưu hash của token để bảo mật
+  expires_at  DATETIME NOT NULL,
+  used        TINYINT(1) NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reset_token_hash (token_hash),
+  FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+CREATE TRIGGER trg_profiles_updated
+BEFORE UPDATE ON profiles
+FOR EACH ROW
+BEGIN
+  SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_face_embeddings_updated
+BEFORE UPDATE ON face_embeddings
+FOR EACH ROW
+BEGIN
+  SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS get_attendance_stats $$
+CREATE PROCEDURE get_attendance_stats(
+  IN p_from DATETIME,
+  IN p_to   DATETIME
+)
+BEGIN
+  SELECT
+    a.method AS method,
+    COUNT(*) AS `count`,
+    ROUND(COUNT(*) / NULLIF(t.total, 0) * 100, 2) AS percentage
+  FROM attendance a
+  JOIN (
+    SELECT COUNT(*) AS total
+    FROM attendance a2
+    WHERE (p_from IS NULL OR a2.at_time >= p_from)
+      AND (p_to   IS NULL OR a2.at_time <= p_to)
+  ) AS t
+  WHERE (p_from IS NULL OR a.at_time >= p_from)
+    AND (p_to   IS NULL OR a.at_time <= p_to)
+  GROUP BY a.method, t.total;
+END $$
+
+DELIMITER ;
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS resolve_program_track_for_user $$
+CREATE PROCEDURE resolve_program_track_for_user(
+  IN p_user_id CHAR(36)
+)
+BEGIN
+  -- Lấy mssv_cohort / mssv_track_code & faculty của user
+  WITH b AS (
+    SELECT p.id AS profile_id,
+           s.mssv_cohort,
+           s.mssv_track_code,
+           c.faculty_id
+    FROM profiles p
+    LEFT JOIN students s ON s.profile_id = p.id
+    LEFT JOIN classes c  ON c.id = p.class_id
+    WHERE p.id = p_user_id
+  ),
+  r AS (
+    SELECT
+      r.program_track_id,
+      r.priority,
+      CASE WHEN r.faculty_id IS NOT NULL THEN 0 ELSE 1 END AS fac_weight
+    FROM b
+    JOIN mssv_scheme_rules r
+      ON r.active = 1
+     AND r.track_code = b.mssv_track_code
+     AND b.mssv_cohort BETWEEN r.cohort_from AND r.cohort_to
+     AND (r.faculty_id IS NULL OR r.faculty_id = b.faculty_id)
+  )
+  SELECT pt.id AS program_track_id, pt.code AS program_track_code, pt.name AS program_track_name
+  FROM r
+  JOIN program_tracks pt ON pt.id = r.program_track_id
+  ORDER BY r.fac_weight ASC, r.priority ASC
+  LIMIT 1;
+END $$
+
+DELIMITER ;
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS find_matching_face $$
+CREATE PROCEDURE find_matching_face(
+  IN p_target JSON,
+  IN p_threshold DOUBLE
+)
+BEGIN
+  /*
+    Tính cosine với từng vector trong mảng vectors của từng user,
+    lấy max theo user, lọc theo p_threshold.
+  */
+  SELECT
+    fe.user_id,
+    pr.full_name,
+    MAX(
+      (
+        /* dot */
+        (SELECT SUM(t.v * s.v)
+           FROM JSON_TABLE(p_target, '$[*]'
+                 COLUMNS (idx FOR ORDINALITY, v DOUBLE PATH '$')) AS t
+           JOIN JSON_TABLE(v1.vec, '$[*]'
+                 COLUMNS (idx2 FOR ORDINALITY, v DOUBLE PATH '$')) AS s
+             ON t.idx = s.idx2
+        )
+        /
+        /* normA * normB */
+        (
+          SQRT(
+            (SELECT SUM(POW(jt1.v, 2))
+               FROM JSON_TABLE(p_target, '$[*]'
+                     COLUMNS (v DOUBLE PATH '$')) AS jt1)
+          )
+          *
+          SQRT(
+            (SELECT SUM(POW(jt2.v, 2))
+               FROM JSON_TABLE(v1.vec, '$[*]'
+                     COLUMNS (v DOUBLE PATH '$')) AS jt2)
+          )
+        )
+      )
+    ) AS similarity_score
+  FROM face_embeddings AS fe
+  JOIN profiles AS pr
+    ON pr.id = fe.user_id AND pr.is_active = 1
+  /* bung từng vector trong mảng vectors của user */
+  JOIN JSON_TABLE(fe.vectors, '$[*]'
+        COLUMNS (vec JSON PATH '$')) AS v1
+  GROUP BY fe.user_id, pr.full_name
+  HAVING similarity_score >= p_threshold
+  ORDER BY similarity_score DESC;
+END $$
+DELIMITER ;
+
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS generate_session_instances $$
+
+CREATE PROCEDURE generate_session_instances(
+  IN p_term_start DATE,
+  IN p_term_end   DATE,
+  IN p_section_id CHAR(36)
+)
+BEGIN
+  IF p_term_end < p_term_start THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'term_end must be >= term_start';
+  END IF;
+
+  /*
+    Sinh các buổi học hằng tuần cho section theo lịch (section_schedules)
+    trong khoảng từ p_term_start đến p_term_end.
+  */
+
+  INSERT IGNORE INTO session_instances (id, section_id, starts_at, ends_at, room_id, status)
+  SELECT
+    UUID(),
+    ss.section_id,
+    TIMESTAMP(DATE_ADD(p_term_start, INTERVAL 7 * n.num DAY), ss.start_time),
+    TIMESTAMP(DATE_ADD(p_term_start, INTERVAL 7 * n.num DAY), ss.end_time),
+    ss.room_id,
+    'planned'
+  FROM section_schedules ss
+  JOIN (
+    SELECT 0 AS num UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+    UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9
+  ) AS n
+  WHERE (p_section_id IS NULL OR ss.section_id = p_section_id)
+    AND ss.end_time > ss.start_time
+    AND DATE_ADD(p_term_start, INTERVAL 7 * n.num DAY) <= p_term_end;
+
+  SELECT ROW_COUNT() AS inserted_or_ignored;
+END $$
+
+DELIMITER ;
+
+
+
+

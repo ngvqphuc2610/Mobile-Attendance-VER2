@@ -1,96 +1,78 @@
-import '../models/profile.dart';
-import '../models/class_model.dart';
-import '../models/faculty.dart';
-import '../models/attendance.dart';
-import '../models/face_embedding.dart';
-import '../datasources/supabase_datasource.dart';
+import '../models/student_model.dart';
+import '../services/student_service.dart';
 
-abstract class StudentRepository {
-  Future<List<Profile>> getStudents();
-  Future<Profile> getStudentById(String id);
-  Future<Profile> getStudentByCode(String code);
-  Future<Profile> createStudent(Profile student);
-  Future<Profile> updateStudent(Profile student);
-  Future<void> deleteStudent(String id);
-
-  Future<List<ClassModel>> getClasses();
-  Future<List<Faculty>> getFaculties();
-
-  Future<List<Attendance>> getAttendanceByStudentId(String studentId);
-  Future<Attendance> markAttendance(Attendance attendance);
-
-  Future<FaceEmbedding?> getFaceEmbedding(String studentId);
-  Future<FaceEmbedding> saveFaceEmbedding(FaceEmbedding faceEmbedding);
-  Future<void> deleteFaceEmbedding(String studentId);
-}
-
-class StudentRepositoryImpl implements StudentRepository {
-  final SupabaseDataSource _dataSource;
-
-  StudentRepositoryImpl(this._dataSource);
-
-  @override
-  Future<List<Profile>> getStudents() async {
-    return await _dataSource.getProfiles();
+class StudentRepository {
+  Future<List<StudentModel>> getStudents({
+    String? facultyId,
+    String? classId,
+    String? search,
+  }) async {
+    try {
+      final data = await StudentService.getStudents(
+        facultyId: facultyId,
+        classId: classId,
+        search: search,
+      );
+      
+      return data.map((json) => StudentModel.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch students: $e');
+    }
   }
 
-  @override
-  Future<Profile> getStudentById(String id) async {
-    return await _dataSource.getProfileById(id);
+  Future<void> createStudent({
+    required String code,
+    required String fullName,
+    required String email,
+    String? phone,
+    String? classId,
+    String? mssv,
+    String? password,
+  }) async {
+    try {
+      await StudentService.createStudent(
+        code: code,
+        fullName: fullName,
+        email: email,
+        phone: phone,
+        classId: classId,
+        mssv: mssv,
+        password: password,
+      );
+    } catch (e) {
+      throw Exception('Failed to create student: $e');
+    }
   }
 
-  @override
-  Future<Profile> getStudentByCode(String code) async {
-    return await _dataSource.getProfileByCode(code);
+  Future<void> updateStudent({
+    required String id,
+    required String code,
+    required String fullName,
+    required String email,
+    String? phone,
+    String? classId,
+    String? mssv,
+  }) async {
+    try {
+      await StudentService.updateStudent(
+        id: id,
+        code: code,
+        fullName: fullName,
+        email: email,
+        phone: phone,
+        classId: classId,
+        mssv: mssv,
+      );
+    } catch (e) {
+      throw Exception('Failed to update student: $e');
+    }
   }
 
-  @override
-  Future<Profile> createStudent(Profile student) async {
-    return await _dataSource.createProfile(student);
-  }
-
-  @override
-  Future<Profile> updateStudent(Profile student) async {
-    return await _dataSource.updateProfile(student);
-  }
-
-  @override
   Future<void> deleteStudent(String id) async {
-    return await _dataSource.deleteProfile(id);
-  }
-
-  @override
-  Future<List<ClassModel>> getClasses() async {
-    return await _dataSource.getClasses();
-  }
-
-  @override
-  Future<List<Faculty>> getFaculties() async {
-    return await _dataSource.getFaculties();
-  }
-
-  @override
-  Future<List<Attendance>> getAttendanceByStudentId(String studentId) async {
-    return await _dataSource.getAttendanceByUserId(studentId);
-  }
-
-  @override
-  Future<Attendance> markAttendance(Attendance attendance) async {
-    return await _dataSource.createAttendance(attendance);
-  }
-
-  @override
-  Future<FaceEmbedding?> getFaceEmbedding(String studentId) async {
-    return await _dataSource.getFaceEmbeddingByUserId(studentId);
-  }
-
-  @override
-  Future<FaceEmbedding> saveFaceEmbedding(FaceEmbedding faceEmbedding) async {
-    return await _dataSource.createOrUpdateFaceEmbedding(faceEmbedding);
-  }
-
-  @override
-  Future<void> deleteFaceEmbedding(String studentId) async {
-    return await _dataSource.deleteFaceEmbedding(studentId);
+    try {
+      await StudentService.deleteStudent(id);
+    } catch (e) {
+      throw Exception('Failed to delete student: $e');
+    }
   }
 }

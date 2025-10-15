@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_theme.dart';
 import '../../../../data/models/faculty.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class EditFacultyPage extends StatefulWidget {
   final Faculty faculty;
 
-  const EditFacultyPage({
-    super.key,
-    required this.faculty,
-  });
+  const EditFacultyPage({super.key, required this.faculty});
 
   @override
   State<EditFacultyPage> createState() => _EditFacultyPageState();
@@ -42,10 +40,7 @@ class _EditFacultyPageState extends State<EditFacultyPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Cập nhật',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                : const Text('Cập nhật', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -95,10 +90,7 @@ class _EditFacultyPageState extends State<EditFacultyPage> {
               const SizedBox(height: AppSizes.paddingLarge),
               const Text(
                 '* Trường bắt buộc',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
@@ -113,13 +105,14 @@ class _EditFacultyPageState extends State<EditFacultyPage> {
     setState(() => _saving = true);
 
     try {
-      await Supabase.instance.client
-          .from('faculties')
-          .update({
-            'code': _codeController.text.trim().toUpperCase(),
-            'name': _nameController.text.trim(),
-          })
-          .eq('id', widget.faculty.id);
+      await ApiService.update(
+        ApiConstants.faculties,
+        widget.faculty.id.toString(),
+        {
+          'code': _codeController.text.trim().toUpperCase(),
+          'name': _nameController.text.trim(),
+        },
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -135,12 +128,9 @@ class _EditFacultyPageState extends State<EditFacultyPage> {
       if (e.toString().contains('duplicate key')) {
         errorMessage = 'Mã khoa đã tồn tại!';
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

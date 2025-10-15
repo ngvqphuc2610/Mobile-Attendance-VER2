@@ -1,10 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import '../../core/helpers/role_helper.dart';
+import '../bloc/auth/auth_bloc.dart';
+import '../../core/constants/app_theme.dart';
 
 class SplashRoleGatePage extends StatefulWidget {
   const SplashRoleGatePage({super.key});
@@ -14,77 +13,130 @@ class SplashRoleGatePage extends StatefulWidget {
 }
 
 class _SplashRoleGatePageState extends State<SplashRoleGatePage> {
+  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _decide();
-    });
+    // Gợi ý: nếu bloc của bạn có event check token / me()
+    // hãy bật dòng dưới (nếu không dùng thì bỏ qua)
+    // context.read<AuthBloc>().add(AuthCheckRequested());
   }
 
-  Future<void> _decide() async {
-    try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session == null) {
-        if (!mounted) return;
-        context.go('/login');
-        return;
-      }
-      // Biometric gate theo tuần nếu người dùng đã bật
-      const aOpts = AndroidOptions(encryptedSharedPreferences: true);
-      const iOpts = IOSOptions(accessibility: KeychainAccessibility.first_unlock);
-      final storage = const FlutterSecureStorage();
-      final enabled = (await storage.read(key: 'biometric_enabled', aOptions: aOpts, iOptions: iOpts)) == 'true';
-      if (enabled) {
-        final lastStr = await storage.read(key: 'biometric_last', aOptions: aOpts, iOptions: iOpts);
-        final last = lastStr != null ? DateTime.tryParse(lastStr) : null;
-        final needAuth = last == null || DateTime.now().difference(last) > const Duration(days: 7);
-        if (needAuth) {
-          final auth = LocalAuthentication();
-          final ok = await auth.authenticate(
-            localizedReason: 'Xác thực để vào ứng dụng',
-            options: const AuthenticationOptions(biometricOnly: true),
-          );
-          if (!ok) {
-            if (!mounted) return;
-            context.go('/login');
-            return;
-          }
-          await storage.write(
-            key: 'biometric_last',
-            value: DateTime.now().toIso8601String(),
-            aOptions: aOpts,
-            iOptions: iOpts,
-          );
-        }
-      }
+  void _navigateByRole(dynamic roleOrRoles) {
+    if (_navigated || !mounted) return;
+    _navigated = true;
 
-      final role = await fetchUserRole();
-      if (!mounted) return;
-      switch (role) {
-        case AppRole.teacher:
-          context.go('/teacher');
-          break;
-        case AppRole.admin:
-          context.go('/admin');
-          break;
-        case AppRole.student:
-        default:
-          context.go('/student');
-          break;
-      }
-    } catch (e) {
-      // Nếu có lỗi (ví dụ RLS ngăn truy vấn), fallback về student
-      if (!mounted) return;
+    // Hỗ trợ cả string đơn lẫn List<String>
+    bool has(String r) {
+      if (roleOrRoles == null) return false;
+      if (roleOrRoles is String) return roleOrRoles == r;
+      if (roleOrRoles is List) return roleOrRoles.contains(r);
+      return false;
+    }
+
+    if (has('admin')) {
+      context.go('/admin');
+    } else if (has('teacher')) {
+      context.go('/teacher');
+    } else {
+      // mặc định student
       context.go('/student');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+    return Scaffold(
+      body: BlocListener<AuthBloc, AuthState>(
+        listenWhen: (prev, curr) => prev.runtimeType != curr.runtimeType,
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            // UserModel currently exposes `role` as a String. Some backends
+            // may return a JSON array or comma separated list inside that
+            // field; try to handle these shapes and pass either a String or
+            // a List<String> to the navigation helper.
+            final rawRole = state.user.role;
+            dynamic roleOrRoles;
+
+            if (rawRole.trim().isEmpty) {
+              roleOrRoles = null;
+            } else {
+              // Try parsing JSON array first
+              try {
+                final parsed = jsonDecode(rawRole);
+                if (parsed is List) {
+                  roleOrRoles = parsed.map((e) => e.toString()).toList();
+                } else if (parsed is String) {
+                  final s = parsed;
+                  roleOrRoles = s.contains(',')
+                      ? s.split(',').map((e) => e.trim()).toList()
+                      : s;
+                } else {
+                  roleOrRoles = rawRole.toString();
+                }
+              } catch (_) {
+                // Not JSON: support comma-separated values
+                final s = rawRole.toString();
+                roleOrRoles = s.contains(',')
+                    ? s.split(',').map((e) => e.trim()).toList()
+                    : s;
+              }
+            }
+
+            _navigateByRole(roleOrRoles);
+          } else if (state is AuthUnauthenticated) {
+            if (!_navigated && mounted) {
+              _navigated = true;
+              context.go('/login');
+            }
+          }
+        },
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                // Logo
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.white,
+                  child: Icon(
+                    Icons.school,
+                    color: AppTheme.primaryColor,
+                    size: 60,
+                  ),
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'Mobile Attendance',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Hệ thống điểm danh thông minh',
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                SizedBox(height: 48),
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
-

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_theme.dart';
 import '../../../../data/services/account_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class AddAccountPage extends StatefulWidget {
   const AddAccountPage({super.key});
@@ -12,7 +13,7 @@ class AddAccountPage extends StatefulWidget {
 
 class _AddAccountPageState extends State<AddAccountPage> {
   final _formKey = GlobalKey<FormState>();
-  final _accountService = AccountService();
+  // Using static methods on AccountService; no instance needed
 
   // Controllers
   final _emailController = TextEditingController();
@@ -29,6 +30,7 @@ class _AddAccountPageState extends State<AddAccountPage> {
   String? _selectedFacultyId;
 
   List<Map<String, dynamic>> _classes = [];
+  List<Map<String, dynamic>> _allClasses = [];
   List<Map<String, dynamic>> _faculties = [];
   bool _loading = false;
   bool _saving = false;
@@ -43,20 +45,15 @@ class _AddAccountPageState extends State<AddAccountPage> {
     setState(() => _loading = true);
 
     try {
-      final supabase = Supabase.instance.client;
-
       // Load classes and faculties
-      final classesResponse = await supabase
-          .from('classes')
-          .select('id, name, code')
-          .order('name');
-
-      final facultiesResponse = await supabase
-          .from('faculties')
-          .select('id, name, code')
-          .order('name');
+      // Use ApiService endpoints via AccountService's endpoints for faculties/classes
+      final classesResponse = await ApiService.getList(ApiConstants.classes);
+      final facultiesResponse = await ApiService.getList(
+        ApiConstants.faculties,
+      );
 
       setState(() {
+        _allClasses = List<Map<String, dynamic>>.from(classesResponse);
         _classes = List<Map<String, dynamic>>.from(classesResponse);
         _faculties = List<Map<String, dynamic>>.from(facultiesResponse);
       });
@@ -229,7 +226,7 @@ class _AddAccountPageState extends State<AddAccountPage> {
                           keyboardType: TextInputType.number,
                         ),
                         const SizedBox(height: AppSizes.paddingMedium),
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String?>(
                           value: _selectedFacultyId,
                           decoration: const InputDecoration(
                             labelText: 'Khoa',
@@ -237,12 +234,12 @@ class _AddAccountPageState extends State<AddAccountPage> {
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(
+                            const DropdownMenuItem<String?>(
                               value: null,
                               child: Text('Chọn khoa'),
                             ),
                             ..._faculties.map(
-                              (faculty) => DropdownMenuItem(
+                              (faculty) => DropdownMenuItem<String?>(
                                 value: faculty['id'],
                                 child: Text(
                                   '${faculty['code']} - ${faculty['name']}',
@@ -250,12 +247,33 @@ class _AddAccountPageState extends State<AddAccountPage> {
                               ),
                             ),
                           ],
-                          onChanged: (value) =>
-                              setState(() => _selectedFacultyId = value),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedFacultyId = value;
+                              _selectedClassId = null;
+                            });
+                            // Filter classes client-side by faculty
+                            if (value != null) {
+                              setState(() {
+                                _classes = _allClasses
+                                    .where(
+                                      (c) =>
+                                          c['cohort']?['faculty_id'] == value ||
+                                          c['cohort']?['faculty']?['id'] ==
+                                              value ||
+                                          c['faculty_id'] == value,
+                                    )
+                                    .toList();
+                              });
+                            } else {
+                              // reload all classes
+                              setState(() => _classes = List.from(_allClasses));
+                            }
+                          },
                         ),
                         const SizedBox(height: AppSizes.paddingMedium),
 
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String?>(
                           value: _selectedClassId,
                           decoration: const InputDecoration(
                             labelText: 'Lớp học',
@@ -263,12 +281,12 @@ class _AddAccountPageState extends State<AddAccountPage> {
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(
+                            const DropdownMenuItem<String?>(
                               value: null,
                               child: Text('Chọn lớp'),
                             ),
                             ..._classes.map(
-                              (cls) => DropdownMenuItem(
+                              (cls) => DropdownMenuItem<String?>(
                                 value: cls['id'],
                                 child: Text('${cls['code']} - ${cls['name']}'),
                               ),
@@ -345,7 +363,7 @@ class _AddAccountPageState extends State<AddAccountPage> {
     setState(() => _saving = true);
 
     try {
-      await _accountService.createAccount(
+      await AccountService.createAccount(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         fullName: _fullNameController.text.trim(),

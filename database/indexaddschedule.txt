@@ -1,0 +1,154 @@
+-- =========================================
+-- đây là script để thêm dữ liệu mẫu cho dev thêm schedule có teacher,student
+-- =========================================
+SET TIME ZONE 'Asia/Ho_Chi_Minh';
+
+-- =========================================
+-- 
+-- =========================================
+WITH
+-- 1.1 Subject (môn học)
+
+  INSERT INTO public.subjects (code, name, credits)
+  VALUES ('MOB101', 'Lập trình Di động', 3)
+  ON CONFLICT (code) DO UPDATE
+    SET name = EXCLUDED.name, credits = EXCLUDED.credits
+  RETURNING id AS subject_id
+
+
+  INSERT INTO public.rooms (code, name, capacity, location)
+  VALUES ('A101', 'Phòng A101', 60, 'Khu A, Tầng 1')
+  ON CONFLICT (code) DO UPDATE
+    SET name = EXCLUDED.name, capacity = EXCLUDED.capacity, location = EXCLUDED.location
+  RETURNING id AS room_id
+
+-- 1.3 Profiles: 1 GV + 1 SV (tối giản)
+
+  INSERT INTO public.profiles (code, full_name, is_active)
+  VALUES ('GV1234', 'Nguyễn Văn A', true)
+  ON CONFLICT (code) DO UPDATE SET full_name = EXCLUDED.full_name
+  RETURNING id AS teacher_profile_id
+
+
+  INSERT INTO public.profiles (code, full_name, is_active)
+  VALUES ('SV1234', 'Trần Thị B', true)
+  ON CONFLICT (code) DO UPDATE SET full_name = EXCLUDED.full_name
+  RETURNING id AS student_profile_id
+
+-- Teacher role
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'teacher' FROM public.profiles WHERE code = 'GV1234'
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Student role
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'student' FROM public.profiles WHERE code = 'SV1234'
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Khoa CNTT
+INSERT INTO public.faculties (code, name)
+VALUES ('CNTT', 'Công nghệ thông tin')
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+
+-- Khoá 2025
+INSERT INTO public.cohorts (year, name)
+VALUES (2025, 'Khóa 2025')
+ON CONFLICT (year) DO NOTHING;
+
+-- Lớp hành chính
+INSERT INTO public.classes (code, name, faculty_id, cohort_id)
+SELECT '21DTHA1', 'Lớp 21DTHA1', f.id, c.id
+FROM public.faculties f, public.cohorts c
+WHERE f.code='CNTT' AND c.year=2025
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+
+-- Giáo viên
+INSERT INTO public.teachers (profile_id, faculty_id, title, office)
+SELECT p.id, f.id, 'Lecturer', 'A-203'
+FROM public.profiles p
+JOIN public.faculties f ON f.code='CNTT'
+WHERE p.code='GV1234'
+ON CONFLICT (profile_id) DO NOTHING;
+
+-- Sinh viên
+INSERT INTO public.students (profile_id, class_id, mssv, mssv_cohort, mssv_track_code, mssv_serial)
+SELECT p.id, c.id, '25123456', 2025, 'CQ', 1
+FROM public.profiles p
+JOIN public.classes c ON c.code='21DTHA1'
+WHERE p.code='SV1234'
+ON CONFLICT (profile_id) DO NOTHING;
+
+-- Section MOB101-01 (Kỳ 1, Năm 2025)
+WITH sub AS (
+  SELECT id AS subject_id FROM public.subjects WHERE code='MOB101'
+)
+INSERT INTO public.class_sections (subject_id, semester, year, section_code, capacity)
+SELECT subject_id, 1, 2025, 'MOB101-01', 60 FROM sub
+ON CONFLICT (subject_id, year, semester, section_code)
+DO UPDATE SET capacity = EXCLUDED.capacity;
+
+-- Phân công GV1234 dạy section đó
+INSERT INTO public.teaching_assignments (section_id, teacher_id, role)
+SELECT cs.id, p.id, 'lecturer'
+FROM public.class_sections cs
+JOIN public.profiles p ON p.code='GV1234'
+WHERE cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+ON CONFLICT (section_id, teacher_id) DO NOTHING;
+
+
+INSERT INTO public.section_schedules (section_id, day_of_week, start_time, end_time, room_id)
+SELECT cs.id, 1, TIME '08:00', TIME '09:50', r.id
+FROM public.class_sections cs
+JOIN public.rooms r ON r.code='A101'
+WHERE cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE public.session_instances
+  ADD CONSTRAINT session_instances_unique UNIQUE (section_id, starts_at);
+
+
+SELECT public.generate_session_instances(
+  '2025-10-13', '2025-10-13',
+  (SELECT id FROM public.class_sections
+   WHERE section_code='MOB101-01' AND year=2025 AND semester=1)
+) AS inserted_sessions;
+
+SELECT si.id, cs.section_code, si.starts_at, si.ends_at, r.code AS room_code, si.status
+FROM public.session_instances si
+JOIN public.class_sections cs ON cs.id = si.section_id
+LEFT JOIN public.rooms r ON r.id = si.room_id
+WHERE cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+  AND si.starts_at::date = '2025-10-13'
+ORDER BY si.starts_at;
+
+INSERT INTO public.enrollments (section_id, student_id)
+SELECT cs.id, p.id
+FROM public.class_sections cs
+JOIN public.profiles p ON p.code='SV1234'
+WHERE cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+ON CONFLICT (section_id, student_id) DO NOTHING;
+
+WITH target_session AS (
+  SELECT si.id AS session_id
+  FROM public.session_instances si
+  JOIN public.class_sections cs ON cs.id = si.section_id
+  WHERE cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+    AND si.starts_at::date = '2025-10-13'
+  LIMIT 1
+),
+stu AS (
+  SELECT id AS student_id FROM public.profiles WHERE code='SV1234'
+)
+INSERT INTO public.attendance (user_id, method, confidence_score, at_time, note, section_id, session_id)
+SELECT stu.student_id, 'barcode', 0.98, now(), 'Quét QR cổng lớp', cs.id, ts.session_id
+FROM stu
+JOIN public.class_sections cs ON cs.section_code='MOB101-01' AND cs.year=2025 AND cs.semester=1
+JOIN target_session ts ON TRUE;
+
+SELECT a.id, p.full_name, a.method, a.confidence_score, a.at_time, cs.section_code, si.starts_at
+FROM public.attendance a
+JOIN public.profiles p ON p.id = a.user_id
+LEFT JOIN public.class_sections cs ON cs.id = a.section_id
+LEFT JOIN public.session_instances si ON si.id = a.session_id
+WHERE si.starts_at::date = '2025-10-13'
+ORDER BY a.at_time;

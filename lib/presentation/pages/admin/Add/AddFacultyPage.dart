@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_theme.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class AddFacultyPage extends StatefulWidget {
   const AddFacultyPage({super.key});
@@ -29,10 +30,7 @@ class _AddFacultyPageState extends State<AddFacultyPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Lưu',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                : const Text('Lưu', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -84,10 +82,7 @@ class _AddFacultyPageState extends State<AddFacultyPage> {
               const SizedBox(height: AppSizes.paddingLarge),
               const Text(
                 '* Trường bắt buộc',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
@@ -102,7 +97,7 @@ class _AddFacultyPageState extends State<AddFacultyPage> {
     setState(() => _saving = true);
 
     try {
-      await Supabase.instance.client.from('faculties').insert({
+      await ApiService.create(ApiConstants.faculties, {
         'code': _codeController.text.trim().toUpperCase(),
         'name': _nameController.text.trim(),
       });
@@ -121,12 +116,9 @@ class _AddFacultyPageState extends State<AddFacultyPage> {
       if (e.toString().contains('duplicate key')) {
         errorMessage = 'Mã khoa đã tồn tại!';
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

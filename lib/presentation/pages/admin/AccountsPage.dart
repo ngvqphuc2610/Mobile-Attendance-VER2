@@ -3,7 +3,6 @@ import '../../../core/constants/app_theme.dart';
 import '../../../data/services/account_service.dart';
 import 'Add/AddAccountPage.dart';
 import 'Edit/EditAccountPage.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AccountsPage extends StatefulWidget {
   const AccountsPage({super.key});
@@ -13,7 +12,7 @@ class AccountsPage extends StatefulWidget {
 }
 
 class _AccountsPageState extends State<AccountsPage> {
-  final _accountService = AccountService();
+  // use AccountService static methods
   final _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _accounts = [];
@@ -35,38 +34,23 @@ class _AccountsPageState extends State<AccountsPage> {
     });
 
     try {
-      final response = await Supabase.instance.client
-          .from('profiles')
-          .select('''
-            id, code, full_name, is_active, email, phone, created_at
-          ''')
-          .order('full_name');
+      // Use backend service to get accounts (supports role/search)
+      final response = await AccountService.getAccounts(
+        role: _roleFilter,
+        search: _searchController.text.isNotEmpty
+            ? _searchController.text
+            : null,
+      );
 
-      // Đảm bảo response là List
-      if (response is List) {
-        _accounts = List<Map<String, dynamic>>.from(response);
+      _accounts = List<Map<String, dynamic>>.from(response);
+      // Ensure role field exists
+      _accounts = _accounts.map((a) {
+        return {...a, 'role': a['role'] ?? 'student'};
+      }).toList();
 
-        // Load roles riêng biệt cho mỗi user
-        for (var account in _accounts) {
-          try {
-            final roleResponse = await Supabase.instance.client
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', account['id'])
-                .maybeSingle();
-
-            account['role'] = roleResponse?['role'] ?? 'student';
-          } catch (e) {
-            account['role'] = 'student'; // fallback
-          }
-        }
-
-        _filteredAccounts = List.from(_accounts);
-        _filterAccounts( _searchController.text,
-          );
-      } else {
-        throw Exception('Unexpected response format');
-      }
+      _filteredAccounts = List.from(_accounts);
+      // Apply client-side filter to mirror previous behavior
+      _filterAccounts(_searchController.text);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -86,8 +70,8 @@ class _AccountsPageState extends State<AccountsPage> {
           final email = account['email']?.toString().toLowerCase() ?? '';
 
           return name.contains(query.toLowerCase()) ||
-                 code.contains(query.toLowerCase()) ||
-                 email.contains(query.toLowerCase());
+              code.contains(query.toLowerCase()) ||
+              email.contains(query.toLowerCase());
         }).toList();
       }
 
@@ -153,9 +137,9 @@ class _AccountsPageState extends State<AccountsPage> {
                   ),
                   onChanged: _filterAccounts,
                 ),
-                
+
                 const SizedBox(height: AppSizes.paddingMedium),
-                
+
                 // Role filter
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -174,7 +158,9 @@ class _AccountsPageState extends State<AccountsPage> {
                         label: const Text('Sinh viên'),
                         selected: _roleFilter == 'student',
                         onSelected: (selected) {
-                          setState(() => _roleFilter = selected ? 'student' : null);
+                          setState(
+                            () => _roleFilter = selected ? 'student' : null,
+                          );
                           _filterAccounts(_searchController.text);
                         },
                       ),
@@ -183,7 +169,9 @@ class _AccountsPageState extends State<AccountsPage> {
                         label: const Text('Giáo viên'),
                         selected: _roleFilter == 'teacher',
                         onSelected: (selected) {
-                          setState(() => _roleFilter = selected ? 'teacher' : null);
+                          setState(
+                            () => _roleFilter = selected ? 'teacher' : null,
+                          );
                           _filterAccounts(_searchController.text);
                         },
                       ),
@@ -192,7 +180,9 @@ class _AccountsPageState extends State<AccountsPage> {
                         label: const Text('Quản trị'),
                         selected: _roleFilter == 'admin',
                         onSelected: (selected) {
-                          setState(() => _roleFilter = selected ? 'admin' : null);
+                          setState(
+                            () => _roleFilter = selected ? 'admin' : null,
+                          );
                           _filterAccounts(_searchController.text);
                         },
                       ),
@@ -391,10 +381,7 @@ class _AccountsPageState extends State<AccountsPage> {
     final action = isActive ? 'disable' : 'enable';
 
     try {
-      await _accountService.disableAccount(
-        userId: account['id'],
-        action: action,
-      );
+      await AccountService.disableAccount(account['id'], action: action);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -436,10 +423,7 @@ class _AccountsPageState extends State<AccountsPage> {
 
     if (confirm == true) {
       try {
-        await _accountService.disableAccount(
-          userId: account['id'],
-          action: 'delete',
-        );
+        await AccountService.deleteAccount(account['id']);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -465,4 +449,3 @@ class _AccountsPageState extends State<AccountsPage> {
     super.dispose();
   }
 }
-

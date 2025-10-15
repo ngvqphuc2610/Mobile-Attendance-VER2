@@ -29,6 +29,17 @@ class AppStrings {
   static const String facultyName = 'Khoa';
   static const String isActive = 'Hoạt động';
 
+  // Teacher Management
+  static const String teacherList = 'Danh sách giáo viên';
+  static const String addTeacher = 'Thêm giáo viên';
+  static const String editTeacher = 'Sửa giáo viên';
+  static const String deleteTeacher = 'Xóa giáo viên';
+  static const String teacherCode = 'Mã giáo viên';
+  static const String teacherName = 'Tên giáo viên';
+  static const String teacherFaculty = 'Khoa';
+  static const String teacherTitle = 'Chức danh';
+  static const String teacherOffice = 'Phòng làm việc';
+
   // Attendance
   static const String takeAttendance = 'Điểm danh';
   static const String attendanceHistory = 'Lịch sử điểm danh';
