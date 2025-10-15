@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
 import '../bloc/auth/auth_bloc.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/services/biometric_auth.dart';
+import '../widgets/BiometricLoginButton.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,7 +18,9 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
+  bool _biometricBusy = false;
 
   @override
   void dispose() {
@@ -25,14 +30,109 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _login() {
-    if (_formKey.currentState!.validate()) {
-      context.read<AuthBloc>().add(
-        AuthLoginRequested(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        ),
+    if (!_formKey.currentState!.validate()) return;
+    context.read<AuthBloc>().add(
+      AuthLoginRequested(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      ),
+    );
+  }
+
+  Future<void> _loginWithBiometric() async {
+    if (_biometricBusy) return;
+    setState(() => _biometricBusy = true);
+
+    try {
+      final canAuth = await BiometricAuth.canAuthenticate();
+      if (!canAuth) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thiet bi khong ho tro van tay')),
+        );
+        return;
+      }
+
+      final accounts = await BiometricAuth.getAccounts();
+      if (accounts.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chua co tai khoan lien ket van tay')),
+        );
+        return;
+      }
+
+      final authed = await BiometricAuth.authenticate(
+        reason: 'Xac thuc van tay de dang nhap',
       );
+      if (!authed) return;
+
+      BiometricAccount target = accounts.first;
+      if (accounts.length > 1) {
+        final chosen = await _pickBiometricAccount(accounts);
+        if (chosen == null) return;
+        target = chosen;
+      }
+
+      if (!mounted) return;
+      context.read<AuthBloc>().add(
+        AuthLoginRequested(email: target.email, password: target.password),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Dang nhap van tay that bai: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _biometricBusy = false);
+      }
     }
+  }
+
+  Future<BiometricAccount?> _pickBiometricAccount(
+    List<BiometricAccount> accounts,
+  ) {
+    return showModalBottomSheet<BiometricAccount>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Chon tai khoan',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: accounts.length,
+                  itemBuilder: (context, index) {
+                    final account = accounts[index];
+                    return ListTile(
+                      leading: const Icon(Icons.person),
+                      title: Text(
+                        account.fullName.isNotEmpty
+                            ? account.fullName
+                            : account.email,
+                      ),
+                      subtitle: Text(account.email),
+                      trailing: Text(account.role.toUpperCase()),
+                      onTap: () => Navigator.of(context).pop(account),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -41,7 +141,6 @@ class _LoginPageState extends State<LoginPage> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
-            // Navigate based on user role
             switch (state.user.role) {
               case 'student':
                 context.go('/student');
@@ -75,20 +174,19 @@ class _LoginPageState extends State<LoginPage> {
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(24),
                 child: Card(
                   elevation: 8,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.all(24),
                     child: Form(
                       key: _formKey,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Logo
                           Container(
                             width: 80,
                             height: 80,
@@ -103,25 +201,21 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          
-                          // Title
                           Text(
                             'Mobile Attendance',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryColor,
-                            ),
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryColor,
+                                ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Đăng nhập để tiếp tục',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            'Dang nhap de tiep tuc',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                           const SizedBox(height: 32),
-                          
-                          // Email field
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -132,26 +226,26 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Vui lòng nhập email';
+                                return 'Vui long nhap email';
                               }
                               if (!value.contains('@')) {
-                                return 'Email không hợp lệ';
+                                return 'Email khong hop le';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 16),
-                          
-                          // Password field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
-                              labelText: 'Mật khẩu',
+                              labelText: 'Mat khau',
                               prefixIcon: const Icon(Icons.lock),
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -163,25 +257,37 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Vui lòng nhập mật khẩu';
+                                return 'Vui long nhap mat khau';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 24),
-                          
-                          // Login button
                           BlocBuilder<AuthBloc, AuthState>(
                             builder: (context, state) {
-                              return SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: ElevatedButton(
-                                  onPressed: state is AuthLoading ? null : _login,
-                                  child: state is AuthLoading
-                                      ? const CircularProgressIndicator(color: Colors.white)
-                                      : const Text('Đăng nhập'),
-                                ),
+                              final isLoading = state is AuthLoading;
+                              return Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: ElevatedButton(
+                                      onPressed: isLoading ? null : _login,
+                                      child: isLoading
+                                          ? const CircularProgressIndicator(
+                                              color: Colors.white,
+                                            )
+                                          : const Text('Dang nhap'),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  BiometricLoginButton(
+                                    busy: isLoading || _biometricBusy,
+                                    onPressed: isLoading || _biometricBusy
+                                        ? null
+                                        : _loginWithBiometric,
+                                  ),
+                                ],
                               );
                             },
                           ),
@@ -198,4 +304,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-

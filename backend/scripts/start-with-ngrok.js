@@ -1,52 +1,59 @@
 const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { updateEnvWithUrl } = require('./update-env');
 
 console.log('🚀 Starting server with ngrok...');
 
-// Start the main server
+// Start the backend in development mode
 const server = spawn('npm', ['run', 'dev'], {
   stdio: 'inherit',
-  shell: true
+  shell: true,
 });
 
-// Wait a bit for server to start, then start ngrok
+// Give the server a moment to boot, then launch ngrok
 setTimeout(() => {
   console.log('🌐 Starting ngrok tunnel...');
-  
+
   const ngrok = spawn('ngrok', ['http', '3000', '--log=stdout'], {
     stdio: 'pipe',
-    shell: true
+    shell: true,
   });
+
+  let lastPublicUrl = null;
 
   ngrok.stdout.on('data', (data) => {
     const output = data.toString();
-    console.log(output);
-    
-    // Extract ngrok URL
-    const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.ngrok\.io/);
+    process.stdout.write(output);
+
+    // Capture the https ngrok URL from the logs (supports ngrok-free.app & ngrok.io)
+    const urlMatch = output.match(/https:\/\/[a-z0-9.-]+\.ngrok[-\w]*\.[a-z]+/);
     if (urlMatch) {
-      const ngrokUrl = urlMatch[0];
-      console.log(`\n🎉 Ngrok URL: ${ngrokUrl}`);
-      console.log(`📱 Update your Flutter app to use: ${ngrokUrl}/api`);
-      
-      // Optionally write to a file for easy access
-      fs.writeFileSync(
-        path.join(__dirname, '../ngrok-url.txt'), 
-        `${ngrokUrl}/api`
-      );
+      const publicUrl = urlMatch[0];
+
+      if (publicUrl !== lastPublicUrl) {
+        lastPublicUrl = publicUrl;
+        console.log(`\n🔗 Ngrok URL detected: ${publicUrl}`);
+        console.log(`📝 Writing ${publicUrl}/api to Flutter .env...`);
+
+        try {
+          updateEnvWithUrl(publicUrl);
+        } catch (error) {
+          console.error('Failed to update .env with ngrok URL:', error.message);
+        }
+      }
     }
   });
 
   ngrok.stderr.on('data', (data) => {
-    console.error(`Ngrok error: ${data}`);
+    process.stderr.write(`Ngrok error: ${data}`);
   });
 
+  ngrok.on('close', (code) => {
+    console.log(`ngrok exited with code ${code}`);
+  });
 }, 3000);
 
-// Handle cleanup
 process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down...');
+  console.log('\n👋 Shutting down...');
   server.kill();
   process.exit();
 });

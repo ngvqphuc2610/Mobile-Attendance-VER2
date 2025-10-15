@@ -14,11 +14,14 @@ const classRoutes = require('./routes/classes');
 const facultyRoutes = require('./routes/faculties');
 const accountRoutes = require('./routes/accounts');
 
-const socketHandler = require('./sockets/socket'); // ✅ CommonJS
+const socketHandler = require('./sockets/socket');
+const swaggerUi = require('swagger-ui-express');
+// nếu file swagger của bạn là CJS thì dùng './config/swagger.cjs'
+const { swaggerSpec } = require('./config/swagger.js');
 
 const app = express();
-const server = http.createServer(app);              // ✅ tạo HTTP server
-const io = new Server(server, {                    // ✅ gắn socket.io
+const server = http.createServer(app);
+const io = new Server(server, {
   cors: {
     origin: (process.env.ALLOWED_ORIGINS?.split(',')) || '*',
     methods: ['GET', 'POST'],
@@ -26,26 +29,36 @@ const io = new Server(server, {                    // ✅ gắn socket.io
   },
 });
 
-// Nếu cần dùng io trong route handlers:
-app.set('io', io);
+// 🔹(1) Bật trust proxy vì đang đi qua ngrok (1 lớp proxy)
+app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
+// (tùy chọn) nếu helmet chặn asset từ Swagger, mở chính sách nhẹ nhàng hơn
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
 app.use(cors({
   origin: (process.env.ALLOWED_ORIGINS?.split(',')) || '*',
   credentials: true
 }));
 
-// Rate limiting
+// 🔹(2) Rate limiting – chuẩn header + tránh xff lỗi
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100
+  limit: 100,
+  standardHeaders: true,   // gửi RateLimit-* headers chuẩn
+  legacyHeaders: false,    // tắt X-RateLimit-* cũ
+  // Nếu vẫn thấy cảnh báo trong dev, có thể bật dòng dưới:
+  // validate: { xForwardedForHeader: false },
 });
 app.use(limiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Cho phép dùng io trong routes
+app.set('io', io);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -56,8 +69,12 @@ app.use('/api/classes', classRoutes);
 app.use('/api/faculties', facultyRoutes);
 app.use('/api/accounts', accountRoutes);
 
+// Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/openapi.json', (_req, res) => res.json(swaggerSpec)); // tiện export
+
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
@@ -71,19 +88,15 @@ app.use((err, req, res, next) => {
 });
 
 // 404
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+app.use('*', (_req, res) => res.status(404).json({ error: 'Route not found' }));
 
-// ✅ Khởi động socket handler
+// Socket handler
 socketHandler(io);
 
-// ✅ Listen qua HTTP server (không dùng app.listen)
+// 🔹(3) Bind 0.0.0.0 để device thật có thể gọi qua ngrok / IP LAN
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🌐 Start ngrok: npm run ngrok');
-  }
+  if (process.env.NODE_ENV === 'development') console.log('🌐 Start ngrok: npm run ngrok');
 });

@@ -1,7 +1,7 @@
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-// Supabase removed: service layer used instead
 
+//biometric đơn giản cho device một account
 class BiometricGate {
   final _auth = LocalAuthentication();
   final _storage =

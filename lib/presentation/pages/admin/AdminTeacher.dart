@@ -19,6 +19,18 @@ class _AdminTeacherState extends State<AdminTeacher> {
   bool _loading = true;
   String? _error;
 
+  bool _parseBool(dynamic value, {bool defaultValue = true}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      if (lower == 'true' || lower == '1') return true;
+      if (lower == 'false' || lower == '0') return false;
+    }
+    return defaultValue;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -38,7 +50,10 @@ class _AdminTeacherState extends State<AdminTeacher> {
         ApiConstants.faculties,
       );
 
-      _teachers = List<Map<String, dynamic>>.from(teachersResponse);
+      _teachers = teachersResponse
+          .map((teacher) => Map<String, dynamic>.from(teacher)
+            ..['is_active'] = _parseBool(teacher['is_active']))
+          .toList();
       _faculties = List<Map<String, dynamic>>.from(facultiesResponse);
       _filteredTeachers = _teachers;
     } catch (e) {
@@ -69,7 +84,8 @@ class _AdminTeacherState extends State<AdminTeacher> {
 
   Future<void> _toggleTeacherStatus(Map<String, dynamic> teacher) async {
     try {
-      final newStatus = !(teacher['is_active'] ?? true);
+      final currentStatus = _parseBool(teacher['is_active']);
+      final newStatus = !currentStatus;
       await ApiService.update(
         ApiConstants.teachers,
         teacher['profile_id'].toString(),
@@ -394,7 +410,7 @@ class _AdminTeacherState extends State<AdminTeacher> {
                     itemCount: _filteredTeachers.length,
                     itemBuilder: (context, index) {
                       final teacher = _filteredTeachers[index];
-                      final isActive = teacher['is_active'] ?? true;
+                      final isActive = _parseBool(teacher['is_active']);
 
                       return Card(
                         margin: const EdgeInsets.only(

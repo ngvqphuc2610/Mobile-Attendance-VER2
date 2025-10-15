@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_attendance/core/constants/app_theme.dart';
 import 'package:mobile_attendance/presentation/pages/teacher/teacher_home_page.dart';
 import 'package:mobile_attendance/data/services/auth_service.dart';
+import 'package:mobile_attendance/presentation/pages/account_page.dart';
 
 class TeacherShell extends StatefulWidget {
   const TeacherShell({super.key});
@@ -16,6 +17,7 @@ class _TeacherShellState extends State<TeacherShell> {
     _TeacherSchedulePage(),
     _TeacherQnaPage(),
     _TeacherNotificationsPage(),
+    AccountPage(),
   ];
 
   @override
@@ -53,6 +55,7 @@ class _TeacherShellState extends State<TeacherShell> {
             label: 'Hỏi đáp',
           ),
           NavigationDestination(icon: Icon(Icons.campaign), label: 'Thông báo'),
+          NavigationDestination(icon: Icon(Icons.account_circle), label: 'Tài khoản'),
         ],
       ),
     );
