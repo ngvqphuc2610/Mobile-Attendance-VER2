@@ -1,211 +1,127 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:equatable/equatable.dart';
-import '../../../data/models/student_model.dart';
 import '../../../data/repositories/student_repository.dart';
+import 'student_event.dart';
+import 'student_state.dart';
 
-// Events
-abstract class StudentEvent extends Equatable {
-  const StudentEvent();
-
-  @override
-  List<Object?> get props => [];
-}
-
-class StudentLoadRequested extends StudentEvent {
-  final String? facultyId;
-  final String? classId;
-  final String? search;
-
-  const StudentLoadRequested({
-    this.facultyId,
-    this.classId,
-    this.search,
-  });
-
-  @override
-  List<Object?> get props => [facultyId, classId, search];
-}
-
-class StudentCreateRequested extends StudentEvent {
-  final String code;
-  final String fullName;
-  final String email;
-  final String? phone;
-  final String? classId;
-  final String? mssv;
-  final String? password;
-
-  const StudentCreateRequested({
-    required this.code,
-    required this.fullName,
-    required this.email,
-    this.phone,
-    this.classId,
-    this.mssv,
-    this.password,
-  });
-
-  @override
-  List<Object?> get props => [code, fullName, email, phone, classId, mssv, password];
-}
-
-class StudentUpdateRequested extends StudentEvent {
-  final String id;
-  final String code;
-  final String fullName;
-  final String email;
-  final String? phone;
-  final String? classId;
-  final String? mssv;
-
-  const StudentUpdateRequested({
-    required this.id,
-    required this.code,
-    required this.fullName,
-    required this.email,
-    this.phone,
-    this.classId,
-    this.mssv,
-  });
-
-  @override
-  List<Object?> get props => [id, code, fullName, email, phone, classId, mssv];
-}
-
-class StudentDeleteRequested extends StudentEvent {
-  final String id;
-
-  const StudentDeleteRequested({required this.id});
-
-  @override
-  List<Object?> get props => [id];
-}
-
-// States
-abstract class StudentState extends Equatable {
-  const StudentState();
-
-  @override
-  List<Object?> get props => [];
-}
-
-class StudentInitial extends StudentState {}
-
-class StudentLoading extends StudentState {}
-
-class StudentLoaded extends StudentState {
-  final List<StudentModel> students;
-
-  const StudentLoaded({required this.students});
-
-  @override
-  List<Object?> get props => [students];
-}
-
-class StudentOperationSuccess extends StudentState {
-  final String message;
-
-  const StudentOperationSuccess({required this.message});
-
-  @override
-  List<Object?> get props => [message];
-}
-
-class StudentError extends StudentState {
-  final String message;
-
-  const StudentError({required this.message});
-
-  @override
-  List<Object?> get props => [message];
-}
-
-// Bloc
 class StudentBloc extends Bloc<StudentEvent, StudentState> {
-  final StudentRepository _studentRepository;
+  final StudentRepository _repository;
 
-  StudentBloc({required StudentRepository studentRepository})
-      : _studentRepository = studentRepository,
-        super(StudentInitial()) {
-    on<StudentLoadRequested>(_onLoadRequested);
-    on<StudentCreateRequested>(_onCreateRequested);
-    on<StudentUpdateRequested>(_onUpdateRequested);
-    on<StudentDeleteRequested>(_onDeleteRequested);
+  StudentBloc({
+    required StudentRepository repository,
+  }) : _repository = repository, super(StudentInitial()) {
+    on<LoadStudents>(_onLoadStudents);
+    on<LoadStudentById>(_onLoadStudentById);
+    on<CreateStudent>(_onCreateStudent);
+    on<UpdateStudent>(_onUpdateStudent);
+    on<DeleteStudent>(_onDeleteStudent);
+    on<FilterStudents>(_onFilterStudents);
   }
 
-  Future<void> _onLoadRequested(
-    StudentLoadRequested event,
+  Future<void> _onLoadStudents(
+    LoadStudents event,
     Emitter<StudentState> emit,
   ) async {
     emit(StudentLoading());
     
     try {
-      final students = await _studentRepository.getStudents(
-        facultyId: event.facultyId,
+      final students = await _repository.getStudents(
         classId: event.classId,
         search: event.search,
+        page: event.page,
+        limit: event.limit,
       );
-      emit(StudentLoaded(students: students));
+      
+      emit(StudentsLoaded(
+        students: students,
+        filteredStudents: students,
+      ));
     } catch (e) {
-      emit(StudentError(message: e.toString()));
+      emit(StudentError(e.toString()));
     }
   }
 
-  Future<void> _onCreateRequested(
-    StudentCreateRequested event,
+  Future<void> _onLoadStudentById(
+    LoadStudentById event,
     Emitter<StudentState> emit,
   ) async {
     emit(StudentLoading());
     
     try {
-      await _studentRepository.createStudent(
-        code: event.code,
-        fullName: event.fullName,
-        email: event.email,
-        phone: event.phone,
-        classId: event.classId,
-        mssv: event.mssv,
-        password: event.password,
-      );
-      emit(const StudentOperationSuccess(message: 'Student created successfully'));
+      final student = await _repository.getStudentById(event.id);
+      emit(StudentLoaded(student));
     } catch (e) {
-      emit(StudentError(message: e.toString()));
+      emit(StudentError(e.toString()));
     }
   }
 
-  Future<void> _onUpdateRequested(
-    StudentUpdateRequested event,
+  Future<void> _onCreateStudent(
+    CreateStudent event,
     Emitter<StudentState> emit,
   ) async {
-    emit(StudentLoading());
-    
     try {
-      await _studentRepository.updateStudent(
-        id: event.id,
-        code: event.code,
-        fullName: event.fullName,
-        email: event.email,
-        phone: event.phone,
-        classId: event.classId,
-        mssv: event.mssv,
-      );
-      emit(const StudentOperationSuccess(message: 'Student updated successfully'));
+      await _repository.createStudent(event.studentDto);
+      emit(const StudentOperationSuccess('Tạo sinh viên thành công'));
+      
+      // Reload students
+      add(const LoadStudents());
     } catch (e) {
-      emit(StudentError(message: e.toString()));
+      emit(StudentError(e.toString()));
     }
   }
 
-  Future<void> _onDeleteRequested(
-    StudentDeleteRequested event,
+  Future<void> _onUpdateStudent(
+    UpdateStudent event,
     Emitter<StudentState> emit,
   ) async {
-    emit(StudentLoading());
-    
     try {
-      await _studentRepository.deleteStudent(event.id);
-      emit(const StudentOperationSuccess(message: 'Student deleted successfully'));
+      await _repository.updateStudent(event.id, event.studentDto);
+      emit(const StudentOperationSuccess('Cập nhật sinh viên thành công'));
+      
+      // Reload students
+      add(const LoadStudents());
     } catch (e) {
-      emit(StudentError(message: e.toString()));
+      emit(StudentError(e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteStudent(
+    DeleteStudent event,
+    Emitter<StudentState> emit,
+  ) async {
+    try {
+      await _repository.deleteStudent(event.id);
+      emit(const StudentOperationSuccess('Xóa sinh viên thành công'));
+      
+      // Reload students
+      add(const LoadStudents());
+    } catch (e) {
+      emit(StudentError(e.toString()));
+    }
+  }
+
+  void _onFilterStudents(
+    FilterStudents event,
+    Emitter<StudentState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is StudentsLoaded) {
+      if (event.query.trim().isEmpty) {
+        emit(currentState.copyWith(
+          filteredStudents: currentState.students,
+        ));
+        return;
+      }
+
+      final query = event.query.toLowerCase();
+      final filtered = currentState.students.where((student) {
+        final profile = student.profile;
+        return student.mssv?.toLowerCase().contains(query) == true ||
+               profile?.fullName.toLowerCase().contains(query) == true ||
+               profile?.code.toLowerCase().contains(query) == true ||
+               profile?.email?.toLowerCase().contains(query) == true;
+      }).toList();
+
+      emit(currentState.copyWith(filteredStudents: filtered));
     }
   }
 }

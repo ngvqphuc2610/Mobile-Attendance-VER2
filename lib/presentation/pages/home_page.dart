@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_theme.dart';
 import 'attendance_page.dart';
-import 'detail_account_page.dart';
+
 
 
 class HomePage extends StatefulWidget {
@@ -19,7 +19,7 @@ class _HomePageState extends State<HomePage> {
     HomeContent(),
 
     AttendancePage(),
-    DetailAccountPage(),
+    
   ];
 
   @override

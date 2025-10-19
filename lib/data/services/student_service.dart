@@ -1,61 +1,59 @@
 import '../../core/constants/api_constants.dart';
+import '../models/entity/student_entity.dart';
+import '../models/dto/student_dto.dart';
 import 'api_service.dart';
 
 class StudentService {
-  static Future<List<Map<String, dynamic>>> getStudents({
-    String? facultyId,
+  static Future<List<StudentEntity>> getStudents({
     String? classId,
     String? search,
+    int? page,
+    int? limit,
   }) async {
     final queryParams = <String, String>{};
     
-    if (facultyId != null) queryParams['faculty_id'] = facultyId;
     if (classId != null) queryParams['class_id'] = classId;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (page != null) queryParams['page'] = page.toString();
+    if (limit != null) queryParams['limit'] = limit.toString();
     
-    return await ApiService.getList(ApiConstants.students, queryParams: queryParams);
+    final response = await ApiService.getList(
+      ApiConstants.students,
+      queryParams: queryParams,
+    );
+    
+    return response
+        .map((json) => StudentEntity.fromJson(json))
+        .toList();
   }
-  
-  static Future<Map<String, dynamic>> createStudent({
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? classId,
-    String? mssv,
-    String? password,
-  }) async {
-    return await ApiService.create(ApiConstants.students, {
-      'code': code,
-      'full_name': fullName,
-      'email': email,
-      'phone': phone,
-      'class_id': classId,
-      'mssv': mssv,
-      'password': password ?? '123456',
-    });
+
+  static Future<StudentEntity> getStudentById(String id) async {
+    final response = await ApiService.getById(ApiConstants.students, id);
+    return StudentEntity.fromJson(response);
   }
-  
-  static Future<Map<String, dynamic>> updateStudent({
-    required String id,
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? classId,
-    String? mssv,
-  }) async {
-    return await ApiService.update(ApiConstants.students, id, {
-      'code': code,
-      'full_name': fullName,
-      'email': email,
-      'phone': phone,
-      'class_id': classId,
-      'mssv': mssv,
-    });
+
+  static Future<StudentEntity> createStudent(StudentDto studentDto) async {
+    final response = await ApiService.create(
+      ApiConstants.students,
+      studentDto.toJson(),
+    );
+    return StudentEntity.fromJson(response);
   }
-  
-  static Future<Map<String, dynamic>> deleteStudent(String id) async {
-    return await ApiService.delete(ApiConstants.students, id);
+
+  static Future<StudentEntity> updateStudent(
+    String id,
+    StudentDto studentDto,
+  ) async {
+    final response = await ApiService.update(
+      ApiConstants.students,
+      id,
+      studentDto.toJson(),
+    );
+    return StudentEntity.fromJson(response);
+  }
+
+  static Future<void> deleteStudent(String id) async {
+    await ApiService.delete(ApiConstants.students, id);
   }
 }
+

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
-import '../models/user_model.dart';
+import '../models/dto/user_model.dart';
 
 class ApiService {
   static String? _token;
@@ -117,6 +117,31 @@ class ApiService {
     }
   }
 
+  // Backwards-compatible: get by id
+  static Future<Map<String, dynamic>> getById(
+    String endpoint,
+    String id,
+  ) async {
+    return get('$endpoint/$id');
+  }
+
+  // Allow get with query params for endpoints that return single-map responses
+  static Future<Map<String, dynamic>> getWithParams(
+    String endpoint, {
+    Map<String, String>? queryParams,
+  }) async {
+    Uri uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    if (queryParams != null) uri = uri.replace(queryParameters: queryParams);
+
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to fetch resource');
+    }
+  }
+
   static Future<Map<String, dynamic>> update(
     String endpoint,
     String id,
@@ -124,6 +149,25 @@ class ApiService {
   ) async {
     final response = await http.put(
       Uri.parse('${ApiConstants.baseUrl}$endpoint/$id'),
+      headers: _headers,
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to update');
+    }
+  }
+
+  // Convenience: update by full path (e.g. '/classes/123')
+  static Future<Map<String, dynamic>> updateByPath(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.put(
+      Uri.parse('${ApiConstants.baseUrl}$path'),
       headers: _headers,
       body: jsonEncode(data),
     );
@@ -150,6 +194,21 @@ class ApiService {
     }
   }
 
+  // Convenience: delete by full path (e.g. '/classes/123')
+  static Future<Map<String, dynamic>> deleteByPath(String path) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConstants.baseUrl}$path'),
+      headers: _headers,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to delete');
+    }
+  }
+
   static Future<Map<String, dynamic>> patch(
     String endpoint,
     String id,
@@ -160,6 +219,42 @@ class ApiService {
       Uri.parse('${ApiConstants.baseUrl}$endpoint/$id/$action'),
       headers: _headers,
       body: data != null ? jsonEncode(data) : null,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to update');
+    }
+  }
+
+  static Future<Map<String, dynamic>> post(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}$endpoint'),
+      headers: _headers,
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to create');
+    }
+  }
+
+  static Future<Map<String, dynamic>> put(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.put(
+      Uri.parse('${ApiConstants.baseUrl}$endpoint'),
+      headers: _headers,
+      body: jsonEncode(data),
     );
 
     if (response.statusCode == 200) {

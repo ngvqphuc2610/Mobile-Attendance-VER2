@@ -3,8 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/pages/admin/AdminShell.dart';
 import '../../presentation/pages/attendance_page.dart';
-import '../../presentation/pages/barcode_scan_page.dart';
-import '../../presentation/pages/face_scan_page.dart';
 import '../../presentation/pages/login_page.dart';
 import '../../presentation/pages/splash_role_gate.dart';
 import '../../presentation/pages/student/StudentShell.dart';
@@ -23,8 +21,7 @@ final GoRouter appRouter = GoRouter(
 
     // Các trang lẻ
     GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
-    GoRoute(path: '/face_scan', builder: (_, __) => const FaceScanPage()),
-    GoRoute(path: '/barcode_scan', builder: (_, __) => const BarcodeScanPage()),
+    // TODO: thêm các trang lẻ khác
   ],
   // Giảm log khi khởi tạo router trong build
   observers: const <NavigatorObserver>[],

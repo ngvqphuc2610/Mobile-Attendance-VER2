@@ -1,62 +1,63 @@
 import 'package:equatable/equatable.dart';
-import '../../../data/models/profile.dart';
-import '../../../data/models/class_model.dart';
-import '../../../data/models/faculty.dart';
+import '../../../data/models/entity/student_entity.dart';
 
-enum StudentStatus { initial, loading, loaded, error }
-
-class StudentState extends Equatable {
-  final StudentStatus status;
-  final List<Profile> students;
-  final List<Profile> filteredStudents;
-  final List<ClassModel> classes;
-  final List<Faculty> faculties;
-  final Profile? selectedStudent;
-  final String? errorMessage;
-  final String searchQuery;
-
-  const StudentState({
-    this.status = StudentStatus.initial,
-    this.students = const [],
-    this.filteredStudents = const [],
-    this.classes = const [],
-    this.faculties = const [],
-    this.selectedStudent,
-    this.errorMessage,
-    this.searchQuery = '',
-  });
-
-  StudentState copyWith({
-    StudentStatus? status,
-    List<Profile>? students,
-    List<Profile>? filteredStudents,
-    List<ClassModel>? classes,
-    List<Faculty>? faculties,
-    Profile? selectedStudent,
-    String? errorMessage,
-    String? searchQuery,
-  }) {
-    return StudentState(
-      status: status ?? this.status,
-      students: students ?? this.students,
-      filteredStudents: filteredStudents ?? this.filteredStudents,
-      classes: classes ?? this.classes,
-      faculties: faculties ?? this.faculties,
-      selectedStudent: selectedStudent ?? this.selectedStudent,
-      errorMessage: errorMessage ?? this.errorMessage,
-      searchQuery: searchQuery ?? this.searchQuery,
-    );
-  }
+abstract class StudentState extends Equatable {
+  const StudentState();
 
   @override
-  List<Object?> get props => [
-    status,
-    students,
-    filteredStudents,
-    classes,
-    faculties,
-    selectedStudent,
-    errorMessage,
-    searchQuery,
-  ];
+  List<Object?> get props => [];
+}
+
+class StudentInitial extends StudentState {}
+
+class StudentLoading extends StudentState {}
+
+class StudentsLoaded extends StudentState {
+  final List<StudentEntity> students;
+  final List<StudentEntity> filteredStudents;
+
+  const StudentsLoaded({
+    required this.students,
+    required this.filteredStudents,
+  });
+
+  @override
+  List<Object> get props => [students, filteredStudents];
+
+  StudentsLoaded copyWith({
+    List<StudentEntity>? students,
+    List<StudentEntity>? filteredStudents,
+  }) {
+    return StudentsLoaded(
+      students: students ?? this.students,
+      filteredStudents: filteredStudents ?? this.filteredStudents,
+    );
+  }
+}
+
+class StudentLoaded extends StudentState {
+  final StudentEntity student;
+
+  const StudentLoaded(this.student);
+
+  @override
+  List<Object> get props => [student];
+}
+
+class StudentError extends StudentState {
+  final String message;
+
+  const StudentError(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
+class StudentOperationSuccess extends StudentState {
+  final String message;
+
+  const StudentOperationSuccess(this.message);
+
+  @override
+  List<Object> get props => [message];
 }

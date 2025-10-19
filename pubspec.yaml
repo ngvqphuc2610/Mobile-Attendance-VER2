@@ -40,7 +40,6 @@ dependencies:
   flutter_bloc: ^8.1.6 # BLoC pattern for state management
   equatable: ^2.0.5 # For value equality
   go_router: ^16.2.2 # Routing
-  supabase_flutter: ^2.10.1 # Supabase client
   hive: ^2.2.3 # Local database
   hive_flutter: ^1.1.0 # Hive for Flutter
   # Camera & Image Processing

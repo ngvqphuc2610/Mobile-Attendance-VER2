@@ -1,73 +1,69 @@
-import '../models/student_model.dart';
+import '../models/entity/student_entity.dart';
+import '../models/dto/student_dto.dart';
 import '../services/student_service.dart';
 
-class StudentRepository {
-  Future<List<StudentModel>> getStudents({
-    String? facultyId,
+abstract class StudentRepository {
+  Future<List<StudentEntity>> getStudents({
     String? classId,
     String? search,
+    int? page,
+    int? limit,
+  });
+  
+  Future<StudentEntity> getStudentById(String id);
+  Future<StudentEntity> createStudent(StudentDto studentDto);
+  Future<StudentEntity> updateStudent(String id, StudentDto studentDto);
+  Future<void> deleteStudent(String id);
+}
+
+class StudentRepositoryImpl implements StudentRepository {
+  @override
+  Future<List<StudentEntity>> getStudents({
+    String? classId,
+    String? search,
+    int? page,
+    int? limit,
   }) async {
     try {
-      final data = await StudentService.getStudents(
-        facultyId: facultyId,
+      return await StudentService.getStudents(
         classId: classId,
         search: search,
+        page: page,
+        limit: limit,
       );
-      
-      return data.map((json) => StudentModel.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Failed to fetch students: $e');
     }
   }
 
-  Future<void> createStudent({
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? classId,
-    String? mssv,
-    String? password,
-  }) async {
+  @override
+  Future<StudentEntity> getStudentById(String id) async {
     try {
-      await StudentService.createStudent(
-        code: code,
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        classId: classId,
-        mssv: mssv,
-        password: password,
-      );
+      return await StudentService.getStudentById(id);
+    } catch (e) {
+      throw Exception('Failed to fetch student: $e');
+    }
+  }
+
+  @override
+  Future<StudentEntity> createStudent(StudentDto studentDto) async {
+    try {
+      return await StudentService.createStudent(studentDto);
     } catch (e) {
       throw Exception('Failed to create student: $e');
     }
   }
 
-  Future<void> updateStudent({
-    required String id,
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? classId,
-    String? mssv,
-  }) async {
+  @override
+  Future<StudentEntity> updateStudent(String id, StudentDto studentDto) async {
     try {
-      await StudentService.updateStudent(
-        id: id,
-        code: code,
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        classId: classId,
-        mssv: mssv,
-      );
+      return await StudentService.updateStudent(id, studentDto);
     } catch (e) {
       throw Exception('Failed to update student: $e');
     }
   }
 
+  @override
   Future<void> deleteStudent(String id) async {
     try {
       await StudentService.deleteStudent(id);
