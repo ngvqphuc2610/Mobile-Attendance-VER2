@@ -1,294 +1,349 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../core/constants/app_theme.dart';
 import '../../../core/di/dependency_injection.dart';
-import '../../bloc/student/student_bloc.dart';
-import '../../bloc/teacher/teacher_bloc.dart';
+
+// BLoC
+import '../../bloc/account/account_event.dart';
+import '../../bloc/attendance/attendance_event.dart';
+import '../../bloc/class_section/class_section_event.dart';
+import '../../bloc/enrollment/enrollment_event.dart';
+import '../../bloc/faculty/faculty_event.dart';
+import '../../bloc/section_schedule/section_schedule_event.dart';
+import '../../bloc/session_instance/session_instance_event.dart';
+import '../../bloc/student/student_event.dart';
+import '../../bloc/subject/subject_event.dart';
+import '../../bloc/teacher/teacher_event.dart';
+import '../../bloc/teaching_assignment/teaching_assignment_event.dart';
+import '../../bloc/account/account_bloc.dart';
 import '../../bloc/attendance/attendance_bloc.dart';
-import '../account_page.dart';
-import 'AdminFaculties.dart';
-import 'AdminStudents.dart';
-import 'AdminTeachers.dart';
+import '../../bloc/class_section/class_section_bloc.dart';
+import '../../bloc/enrollment/enrollment_bloc.dart';
+import '../../bloc/faculty/faculty_bloc.dart';
+import '../../bloc/section_schedule/section_schedule_bloc.dart';
+import '../../bloc/session_instance/session_instance_bloc.dart';
+import '../../bloc/student/student_bloc.dart';
+import '../../bloc/subject/subject_bloc.dart';
+import '../../bloc/teacher/teacher_bloc.dart';
+import '../../bloc/teaching_assignment/teaching_assignment_bloc.dart';
+
+// Pages
 import 'AdminAccounts.dart';
-import 'AdminClass.dart';
-import 'AdminSubjects.dart';
-import 'AdminRooms.dart';
-import 'AdminEnrollments.dart';
-import 'AdminSessionInstances.dart';
-import 'AdminTeachingAssignments.dart';
-import 'AdminSectionSchedules.dart';
-import 'AdminSchedules.dart';
 import 'AdminAttendance.dart';
+import 'AdminClasses.dart';
+import 'AdminEnrollments.dart';
+import 'AdminFaculties.dart';
+import 'AdminRooms.dart';
+import 'AdminSchedules.dart';
+import 'AdminStudents.dart';
+import 'AdminSubjects.dart';
+import 'AdminTeachers.dart';
+import '../account_page.dart';
 
-class AdminShell extends StatefulWidget {
+class AdminShell extends StatelessWidget {
   const AdminShell({super.key});
-  @override
-  State<AdminShell> createState() => _AdminShellState();
-}
-
-class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _pages = [
-    BlocProvider(
-      create: (context) => sl<StudentBloc>(),
-      child: const AdminStudents(),
-    ),
-    BlocProvider(
-      create: (context) => sl<TeacherBloc>(),
-      child: const AdminTeachers(),
-    ),
-    const AdminFaculties(),
-    const AdminClasses(),
-    BlocProvider(
-      create: (context) => sl<AttendanceBloc>(),
-      child: const AdminAttendance(),
-    ),
-    const AdminSubjects(),
-    const AdminRooms(),
-    const AdminEnrollments(),
-    const AdminSessionInstances(),
-    const AdminTeachingAssignments(),
-    const AdminSectionSchedules(),
-    const AdminSchedules(),
-    const AccountsPage(),
-    const AccountPage(),
-  ];
-
-  final List<String> _titles = [
-    'Sinh viên',
-    'Giảng viên',
-    'Khoa',
-    'Lớp',
-    'Điểm danh',
-    'Môn học',
-    'Phòng học',
-    'Đăng ký',
-    'Buổi học',
-    'Phân công',
-    'Lịch học',
-    'Thời khóa biểu',
-    'Tài khoản',
-    'Cá nhân',
-  ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: _pages[_selectedIndex],
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-              ),
-              child: Text(
-                'Quản trị viên',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            _buildDrawerItem(Icons.school, 'Sinh viên', 0),
-            _buildDrawerItem(Icons.person, 'Giảng viên', 1),
-            _buildDrawerItem(Icons.business, 'Khoa', 2),
-            _buildDrawerItem(Icons.class_, 'Lớp', 3),
-            _buildDrawerItem(Icons.check_circle, 'Điểm danh', 4),
-            _buildDrawerItem(Icons.book, 'Môn học', 5),
-            _buildDrawerItem(Icons.room, 'Phòng học', 6),
-            _buildDrawerItem(Icons.app_registration, 'Đăng ký', 7),
-            _buildDrawerItem(Icons.event, 'Buổi học', 8),
-            _buildDrawerItem(Icons.assignment_ind, 'Phân công', 9),
-            _buildDrawerItem(Icons.schedule, 'Lịch học', 10),
-            _buildDrawerItem(Icons.calendar_today, 'Thời khóa biểu', 11),
-            const Divider(),
-            _buildDrawerItem(Icons.account_circle, 'Tài khoản', 12),
-            _buildDrawerItem(Icons.person_outline, 'Cá nhân', 13),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem(IconData icon, String title, int index) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      selected: _selectedIndex == index,
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-        Navigator.pop(context);
-      },
-    );
-  }
-}
-
-class _AdminHomePage extends StatelessWidget {
-  final ValueChanged<int> onNavigate;
-  const _AdminHomePage({required this.onNavigate});
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = <_QuickAction>[
-      _QuickAction(
-        icon: Icons.school,
-        label: 'Khoa',
-        index: 1,
-        color: Colors.indigo,
-      ),
-      _QuickAction(
-        icon: Icons.people,
-        label: 'Sinh viên',
-        index: 2,
-        color: Colors.teal,
-      ),
-      _QuickAction(
-        icon: Icons.person,
-        label: 'Giáo viên',
-        index: 3,
-        color: Colors.deepPurple,
-      ),
-      _QuickAction(
-        icon: Icons.analytics,
-        label: 'Báo cáo',
-        index: 4,
-        color: Colors.orange,
-      ),
-      _QuickAction(
-        icon: Icons.admin_panel_settings,
-        label: 'QL Tài khoản',
-        index: 5,
-        color: Colors.blueGrey,
-      ),
-      _QuickAction(
-        icon: Icons.account_circle,
-        label: 'Tài khoản của tôi',
-        index: 6,
-        color: Colors.pink,
-      ),
-      _QuickAction(
-        icon: Icons.class_,
-        label: 'Lớp học',
-        color: Colors.green,
-        routeBuilder: (_) => const AdminClass(),
-      ),
-      _QuickAction(
-        icon: Icons.subject,
-        label: 'Môn học',
-        color: Colors.amber,
-        routeBuilder: (_) => const AdminSubject(),
-      ),
-      _QuickAction(
-        icon: Icons.room,
-        label: 'Phòng học',
-        color: Colors.brown,
-        routeBuilder: (_) => const AdminRoom(),
-      ),
-      _QuickAction(
-        icon: Icons.assignment_ind,
-        label: 'Đăng ký lớp',
-        color: Colors.lime,
-        routeBuilder: (_) => const AdminEnrollments(),
-      ),
-      _QuickAction(
-        icon: Icons.schedule,
-        label: 'Lịch học',
-        color: Colors.cyan,
-        routeBuilder: (_) => const AdminSchedules(),
-      ),
-
-
-      
-    ];
+    final width = MediaQuery.of(context).size.width;
+    final managementColumns = width >= 420 ? 3 : 2;
+    final scheduleColumns = width >= 420 ? 4 : 3;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin - Trang chủ')),
       backgroundColor: AppColors.background,
-      body: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingMedium),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: AppSizes.paddingMedium,
-          mainAxisSpacing: AppSizes.paddingMedium,
-          children: actions
-              .map(
-                (a) => _QuickActionCard(
-                  action: a,
-                  onTap: () {
-                    if (a.index != null) {
-                      onNavigate(
-                        a.index!,
-                      ); // chuyển tab cho các mục gắn BottomNav
-                    } else if (a.routeBuilder != null) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: a.routeBuilder!,
-                        ), // mở màn độc lập
-                      );
-                    }
-                  },
-                ),
-              )
-              .toList(),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        titleSpacing: 0,
+        title: const Text(
+          'Bảng điều khiển',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSizes.paddingMedium),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSearchBar(),
+              const SizedBox(height: AppSizes.paddingLarge),
+
+              const _SectionHeader(title: 'Danh mục quản lý'),
+              const SizedBox(height: AppSizes.paddingSmall),
+
+              _ActionGrid(
+                crossAxisCount: managementColumns,
+                items: [
+                  _ActionItem(
+                    label: 'Sinh viên',
+                    icon: Icons.school,
+                    onTap: () => _openWithBloc<StudentBloc>(
+                      context,
+                      create: () => sl<StudentBloc>(),
+                      page: (_) => const AdminStudents(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Giảng viên',
+                    icon: Icons.person_outline,
+                    onTap: () => _openWithBloc<TeacherBloc>(
+                      context,
+                      create: () => sl<TeacherBloc>(),
+                      page: (_) => const AdminTeachers(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Khoa',
+                    icon: Icons.apartment_outlined,
+                    onTap: () => _openWithBloc<FacultyBloc>(
+                      context,
+                      create: () => sl<FacultyBloc>(),
+                      page: (_) => const AdminFaculties(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Môn học',
+                    icon: Icons.menu_book_outlined,
+                    onTap: () => _openWithBloc<SubjectBloc>(
+                      context,
+                      create: () => sl<SubjectBloc>(),
+                      page: (_) => const AdminSubjects(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Lớp học',
+                    icon: Icons.class_,
+                    onTap: () =>
+                        _openSimple(context, (_) => const AdminClasses()),
+                  ),
+                  _ActionItem(
+                    label: 'Phòng học',
+                    icon: Icons.meeting_room_outlined,
+                    onTap: () =>
+                        _openSimple(context, (_) => const AdminRooms()),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: AppSizes.paddingLarge),
+
+              const _SectionHeader(title: 'Lịch & phân công'),
+              const SizedBox(height: AppSizes.paddingSmall),
+
+              _ActionGrid(
+                crossAxisCount: scheduleColumns,
+                items: [
+                  _ActionItem(
+                    label: 'Lịch giảng dạy',
+                    icon: Icons.schedule_outlined,
+                    onTap: () => _openWithMultiBloc(
+                      context,
+                      providers: [
+                        BlocProvider(create: (_) => sl<SectionScheduleBloc>()..add(const LoadSectionSchedules()), lazy: false),
+                        BlocProvider(create: (_) => sl<SessionInstanceBloc>()..add(const LoadSessionInstances()), lazy: false),
+                        BlocProvider(create: (_) => sl<TeachingAssignmentBloc>()..add(const LoadTeachingAssignments()), lazy: false),
+                      ],
+                      page: (_) => const AdminSchedules(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Đăng ký học phần',
+                    icon: Icons.how_to_reg_outlined,
+                    onTap: () => _openWithMultiBloc(
+                      context,
+                      providers: [
+                        BlocProvider(create: (_) => sl<EnrollmentBloc>()..add(const LoadEnrollments()), lazy: false),
+                        BlocProvider(create: (_) => sl<ClassSectionBloc>()..add(const LoadClassSections()), lazy: false),
+                        BlocProvider(create: (_) => sl<StudentBloc>()..add(const LoadStudents()), lazy: false),
+                      ],
+                      page: (_) => const AdminEnrollments(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Điểm danh',
+                    icon: Icons.check_circle_outline,
+                    onTap: () => _openWithBloc<AttendanceBloc>(
+                      context,
+                      create: () => sl<AttendanceBloc>(),
+                      page: (_) => const AdminAttendance(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Tài khoản',
+                    icon: Icons.manage_accounts_outlined,
+                    onTap: () => _openWithBloc<AccountBloc>(
+                      context,
+                      create: () => sl<AccountBloc>(),
+                      page: (_) => const AdminAccounts(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Cá nhân',
+                    icon: Icons.person_outline,
+                    onTap: () =>
+                        _openSimple(context, (_) => const AccountPage()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: 'Tìm kiếm sinh viên, lớp học, ...',
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      onSubmitted: (_) {},
+    );
+  }
+
+  /// MỞ TRANG ĐƠN GIẢN (không BLoC)
+  static void _openSimple(
+    BuildContext context,
+    Widget Function(BuildContext) page,
+  ) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => page(ctx)));
+  }
+
+  /// MỞ TRANG VỚI 1 BLoC - CHỈ tạo BLoC, page tự load data
+  static void _openWithBloc<T extends BlocBase<Object?>>(
+    BuildContext context, {
+    required T Function() create,
+    required Widget Function(BuildContext) page,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => BlocProvider<T>(
+          create: (_) => create(),
+          lazy: false, // ✅ Tạo BLoC ngay lập tức
+          child: Builder(
+            builder: (context) {
+              // ✅ Context đã có BLoC, page có thể đọc ngay
+              return page(context);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// MỞ TRANG VỚI NHIỀU BLoC
+  static void _openWithMultiBloc(
+    BuildContext context, {
+    required List<BlocProvider> providers,
+    required Widget Function(BuildContext) page,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => MultiBlocProvider(
+          providers: providers, // ✅ giữ nguyên
+          child: Builder(builder: (context) => page(context)),
         ),
       ),
     );
   }
 }
 
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final int? index; // đi bằng BottomNavigationBar
-  final WidgetBuilder? routeBuilder; // mở màn độc lập bằng push
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    this.index,
-    this.routeBuilder,
-  });
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final _QuickAction action;
-  final VoidCallback onTap;
-  const _QuickActionCard({required this.action, required this.onTap});
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Text(
+      title.toUpperCase(),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: AppColors.primary,
+        letterSpacing: .8,
+      ),
+    );
+  }
+}
+
+class _ActionItem {
+  const _ActionItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({required this.items, required this.crossAxisCount});
+  final List<_ActionItem> items;
+  final int crossAxisCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      primary: false,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.2,
+      ),
+      itemBuilder: (_, index) => _ActionTile(item: items[index]),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({required this.item});
+  final _ActionItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        onTap: item.onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppSizes.paddingLarge),
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: action.color.withOpacity(0.15),
-                child: Icon(action.icon, size: 28, color: action.color),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                ),
+                child: Icon(item.icon, color: AppColors.primary, size: 24),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
-                action.label,
+                item.label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -298,23 +353,5 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-class _ReportsPage extends StatelessWidget {
-  const _ReportsPage();
-  @override
-  Widget build(BuildContext context) =>
-      const _Placeholder(title: 'Admin - Báo cáo');
-}
 
-class _Placeholder extends StatelessWidget {
-  final String title;
-  const _Placeholder({required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: const Center(child: Text('TODO: Nội dung admin sẽ bổ sung sau')),
-      backgroundColor: AppColors.background,
-    );
-  }
-}
 

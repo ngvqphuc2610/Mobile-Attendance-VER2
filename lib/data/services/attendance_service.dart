@@ -59,4 +59,13 @@ class AttendanceService {
       queryParams: queryParams,
     );
   }
+  static Future<void> deleteAttendance(String id) {
+    return ApiService.delete(ApiConstants.attendance, id);
+  }
+  static Future<Map<String, dynamic>> updateAttendanceFromPayload(
+    String id,
+    Map<String, dynamic> payload,
+  ) {
+    return ApiService.update(ApiConstants.attendance, id, payload);
+  }
 }

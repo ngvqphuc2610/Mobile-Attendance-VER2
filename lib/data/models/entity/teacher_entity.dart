@@ -20,13 +20,44 @@ class TeacherEntity extends Equatable {
   });
 
   factory TeacherEntity.fromJson(Map<String, dynamic> json) {
+    ProfileEntity? profile;
+    final rawProfile = json['profile'];
+    if (rawProfile is Map<String, dynamic>) {
+      profile = ProfileEntity.fromJson(rawProfile);
+    } else if (json.containsKey('full_name') || json.containsKey('code')) {
+      profile = ProfileEntity(
+        id: json['profile_id']?.toString() ?? '',
+        code: json['code']?.toString() ?? '',
+        fullName: json['full_name']?.toString() ?? '',
+        classId: null,
+        isActive: json['is_active'] == 1 || json['is_active'] == true,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? DateTime.now(),
+        email: json['email']?.toString(),
+        phone: json['phone']?.toString(),
+      );
+    }
+
+    FacultyEntity? faculty;
+    final rawFaculty = json['faculty'];
+    if (rawFaculty is Map<String, dynamic>) {
+      faculty = FacultyEntity.fromJson(rawFaculty);
+    } else if (json.containsKey('faculty_name') || json.containsKey('faculty_code')) {
+      faculty = FacultyEntity(
+        id: json['faculty_id']?.toString() ?? '',
+        code: json['faculty_code']?.toString() ?? '',
+        name: json['faculty_name']?.toString() ?? '',
+        createdAt: DateTime.tryParse(json['faculty_created_at']?.toString() ?? '') ?? DateTime.now(),
+      );
+    }
+
     return TeacherEntity(
       profileId: json['profile_id']?.toString() ?? '',
       facultyId: json['faculty_id']?.toString(),
       title: json['title']?.toString(),
       office: json['office']?.toString(),
-      profile: json['profile'] != null ? ProfileEntity.fromJson(json['profile']) : null,
-      faculty: json['faculty'] != null ? FacultyEntity.fromJson(json['faculty']) : null,
+      profile: profile,
+      faculty: faculty,
     );
   }
 

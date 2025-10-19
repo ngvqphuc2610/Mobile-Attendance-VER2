@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../core/constants/app_theme.dart';
 import '../../../data/models/entity/teacher_entity.dart';
-import '../../../data/models/dto/teacher_dto.dart';
 import '../../bloc/teacher/teacher_bloc.dart';
 import '../../bloc/teacher/teacher_event.dart';
 import '../../bloc/teacher/teacher_state.dart';
-import '../../widgets/loading_widget.dart';
+
+// ✅ Bạn đã import 2 trang này rồi
+import 'add/AddTeacherPage.dart';
+import 'edit/EditTeacherPage.dart';
 
 class AdminTeachers extends StatefulWidget {
   const AdminTeachers({super.key});
@@ -17,24 +21,65 @@ class AdminTeachers extends StatefulWidget {
 
 class _AdminTeachersState extends State<AdminTeachers> {
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    context.read<TeacherBloc>().add(const LoadTeachers());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<TeacherBloc>().add(const LoadTeachers());
+      }
+    });
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _showTeacherForm([TeacherEntity? teacher]) {
-    showDialog(
-      context: context,
-      builder: (context) => _TeacherFormDialog(teacher: teacher),
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      context.read<TeacherBloc>().add(FilterTeachers(query.trim()));
+    });
+  }
+
+  // ===== MỞ TRANG THÊM / SỬA =====
+  Future<void> _openAddTeacher() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddTeacherPage()),
     );
+    if (created == true && mounted) {
+      context.read<TeacherBloc>().add(const LoadTeachers());
+    }
+  }
+
+  Future<void> _openEditTeacher(TeacherEntity teacher) async {
+    final payload = {
+      'profile_id': teacher.profileId,
+      'code': teacher.profile?.code,
+      'full_name': teacher.profile?.fullName,
+      'email': teacher.profile?.email,
+      'phone': teacher.profile?.phone,
+      'faculty_id': teacher.facultyId,
+      'title': teacher.title,
+      'office': teacher.office,
+    };
+
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditTeacherPage(teacher: payload),
+      ),
+    );
+    if (updated == true && mounted) {
+      context.read<TeacherBloc>().add(const LoadTeachers());
+    }
   }
 
   void _confirmDelete(TeacherEntity teacher) {
@@ -55,7 +100,10 @@ class _AdminTeachersState extends State<AdminTeachers> {
               Navigator.of(ctx).pop();
               context.read<TeacherBloc>().add(DeleteTeacher(teacher.profileId));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Xóa'),
           ),
         ],
@@ -71,100 +119,210 @@ class _AdminTeachersState extends State<AdminTeachers> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
+
+      // ✅ FAB thêm GV
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddTeacher,
+        icon: const Icon(Icons.add),
+        label: const Text('Thêm giảng viên'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+
       body: BlocListener<TeacherBloc, TeacherState>(
         listener: (context, state) {
           if (state is TeacherError) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-              ),
+              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
             );
           } else if (state is TeacherOperationSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.green,
-              ),
+              SnackBar(content: Text(state.message), backgroundColor: Colors.green),
             );
+            // Reload danh sách sau create/update/delete
+            context.read<TeacherBloc>().add(const LoadTeachers());
           }
         },
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSizes.paddingMedium),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.search),
-                        hintText: 'Tìm theo tên, mã, email...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-                        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // ép toàn bộ nội dung có width hữu hạn
+              Widget wrap(Widget child) => Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                      child: child,
+                    ),
+                  );
+
+              // Header (search + add) dùng Sliver
+              SliverToBoxAdapter header() => SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSizes.paddingMedium),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.search),
+                                hintText: 'Tìm theo tên, mã, email...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+                                ),
+                                filled: true,
+                              ),
+                              onChanged: _onSearchChanged,
+                              textInputAction: TextInputAction.search,
+                            ),
+                          ),
+                          const SizedBox(width: AppSizes.paddingSmall),
+                          // ✅ Nút "Thêm GV" ở header cũng đi tới trang AddTeacherPage
+                          ElevatedButton.icon(
+                            onPressed: _openAddTeacher,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Thêm GV'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
                       ),
-                      onChanged: (query) {
-                        context.read<TeacherBloc>().add(FilterTeachers(query));
-                      },
                     ),
-                  ),
-                  const SizedBox(width: AppSizes.paddingSmall),
-                  ElevatedButton.icon(
-                    onPressed: () => _showTeacherForm(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Thêm GV'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: BlocBuilder<TeacherBloc, TeacherState>(
+                  );
+
+              return BlocBuilder<TeacherBloc, TeacherState>(
                 builder: (context, state) {
                   if (state is TeacherLoading) {
-                    return const LoadingWidget(message: 'Đang tải giảng viên...');
+                    return wrap(
+                      CustomScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: const [
+                          SliverToBoxAdapter(child: SizedBox(height: 12)),
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   if (state is TeacherError) {
-                    return _ErrorRetry(
-                      message: state.message,
-                      onRetry: () {
-                        context.read<TeacherBloc>().add(const LoadTeachers());
-                      },
+                    return wrap(
+                      CustomScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: [
+                          header(),
+                          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(child: Text('Đã xảy ra lỗi. Thử lại nhé.')),
+                          ),
+                        ],
+                      ),
                     );
                   }
 
                   if (state is TeachersLoaded) {
-                    if (state.filteredTeachers.isEmpty) {
-                      return const Center(
-                        child: Text('Chưa có giảng viên nào'),
+                    final items = state.filteredTeachers;
+
+                    if (items.isEmpty) {
+                      return wrap(
+                        CustomScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          slivers: [
+                            header(),
+                            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      state.teachers.isEmpty ? Icons.people_outline : Icons.search_off,
+                                      size: 64,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      state.teachers.isEmpty
+                                          ? 'Chưa có giảng viên nào'
+                                          : 'Không tìm thấy kết quả',
+                                      style: const TextStyle(fontSize: 16, color: Colors.grey),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    if (state.teachers.isEmpty)
+                                      ElevatedButton.icon(
+                                        onPressed: _openAddTeacher,
+                                        icon: const Icon(Icons.add),
+                                        label: const Text('Thêm giảng viên đầu tiên'),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(AppSizes.paddingMedium),
-                      itemCount: state.filteredTeachers.length,
-                      itemBuilder: (context, index) {
-                        final teacher = state.filteredTeachers[index];
-                        return _TeacherCard(
-                          teacher: teacher,
-                          onEdit: () => _showTeacherForm(teacher),
-                          onDelete: () => _confirmDelete(teacher),
-                        );
-                      },
+                    return wrap(
+                      CustomScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: [
+                          header(),
+                          SliverList.separated(
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final t = items[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingMedium),
+                                child: KeyedSubtree(
+                                  key: ValueKey(t.profileId),
+                                  child: _TeacherCard(
+                                    teacher: t,
+                                    onEdit: () => _openEditTeacher(t), // ✅ mở trang Edit
+                                    onDelete: () => _confirmDelete(t),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                        ],
+                      ),
                     );
                   }
 
-                  return const Center(child: Text('Không có dữ liệu'));
+                  // Initial
+                  return wrap(
+                    CustomScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      slivers: [
+                        header(),
+                        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.read<TeacherBloc>().add(const LoadTeachers()),
+                              icon: const Icon(Icons.download),
+                              label: const Text('Tải danh sách giảng viên'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 },
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -184,33 +342,33 @@ class _TeacherCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = teacher.profile;
+    final p = teacher.profile;
+    final name = (p?.fullName ?? '').trim();
+    final initials = name.isNotEmpty ? name.characters.first.toUpperCase() : 'T';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppSizes.paddingSmall),
       child: ListTile(
+        onTap: onEdit,
         leading: CircleAvatar(
           backgroundColor: AppColors.secondary,
           child: Text(
-            profile?.fullName.substring(0, 1).toUpperCase() ?? 'T',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+            initials,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
         title: Text(
-          profile?.fullName ?? 'Chưa có tên',
+          name.isNotEmpty ? name : 'Chưa có tên',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (profile?.code != null) Text('Mã GV: ${profile!.code}'),
-            if (teacher.title != null) Text('Chức danh: ${teacher.title}'),
-            if (teacher.office != null) Text('Phòng: ${teacher.office}'),
-            if (profile?.email != null) Text('Email: ${profile!.email}'),
-            Text('Trạng thái: ${profile?.isActive == true ? "Hoạt động" : "Không hoạt động"}'),
+            if (p?.code?.isNotEmpty == true) Text('Mã GV: ${p!.code}'),
+            if (teacher.title?.isNotEmpty == true) Text('Chức danh: ${teacher.title}'),
+            if (teacher.office?.isNotEmpty == true) Text('Phòng: ${teacher.office}'),
+            if (p?.email?.isNotEmpty == true) Text('Email: ${p!.email}'),
+            Text('Trạng thái: ${p?.isActive == true ? "Hoạt động" : "Không hoạt động"}'),
           ],
         ),
         trailing: PopupMenuButton<String>(
@@ -230,6 +388,7 @@ class _TeacherCard extends StatelessWidget {
               child: ListTile(
                 leading: Icon(Icons.edit),
                 title: Text('Sửa'),
+                contentPadding: EdgeInsets.zero,
               ),
             ),
             PopupMenuItem(
@@ -237,213 +396,8 @@ class _TeacherCard extends StatelessWidget {
               child: ListTile(
                 leading: Icon(Icons.delete, color: Colors.red),
                 title: Text('Xóa', style: TextStyle(color: Colors.red)),
+                contentPadding: EdgeInsets.zero,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TeacherFormDialog extends StatefulWidget {
-  final TeacherEntity? teacher;
-
-  const _TeacherFormDialog({this.teacher});
-
-  @override
-  State<_TeacherFormDialog> createState() => _TeacherFormDialogState();
-}
-
-class _TeacherFormDialogState extends State<_TeacherFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _fullNameController;
-  late final TextEditingController _codeController;
-  late final TextEditingController _emailController;
-  late final TextEditingController _phoneController;
-  late final TextEditingController _titleController;
-  late final TextEditingController _officeController;
-  late bool _isActive;
-
-  @override
-  void initState() {
-    super.initState();
-    final profile = widget.teacher?.profile;
-
-    _fullNameController = TextEditingController(text: profile?.fullName ?? '');
-    _codeController = TextEditingController(text: profile?.code ?? '');
-    _emailController = TextEditingController(text: profile?.email ?? '');
-    _phoneController = TextEditingController(text: profile?.phone ?? '');
-    _titleController = TextEditingController(text: widget.teacher?.title ?? '');
-    _officeController = TextEditingController(text: widget.teacher?.office ?? '');
-    _isActive = profile?.isActive ?? true;
-  }
-
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _codeController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _titleController.dispose();
-    _officeController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final teacherDto = TeacherDto(
-      fullName: _fullNameController.text.trim(),
-      code: _codeController.text.trim(),
-      email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-      office: _officeController.text.trim().isEmpty ? null : _officeController.text.trim(),
-      isActive: _isActive,
-    );
-
-    final bloc = context.read<TeacherBloc>();
-
-    if (widget.teacher == null) {
-      bloc.add(CreateTeacher(teacherDto));
-    } else {
-      bloc.add(UpdateTeacher(
-        id: widget.teacher!.profileId,
-        teacherDto: teacherDto,
-      ));
-    }
-
-    Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.teacher == null ? 'Thêm giảng viên' : 'Cập nhật giảng viên',
-      ),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _fullNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Họ và tên *',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nhập họ và tên';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _codeController,
-                decoration: const InputDecoration(
-                  labelText: 'Mã giảng viên *',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nhập mã giảng viên';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Chức danh',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _officeController,
-                decoration: const InputDecoration(
-                  labelText: 'Phòng làm việc',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Số điện thoại',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 16),
-              SwitchListTile(
-                title: const Text('Hoạt động'),
-                value: _isActive,
-                onChanged: (value) {
-                  setState(() {
-                    _isActive = value;
-                  });
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Hủy'),
-        ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('Lưu'),
-        ),
-      ],
-    );
-  }
-}
-
-class _ErrorRetry extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorRetry({
-    required this.message,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingLarge),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              message,
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSizes.paddingMedium),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Thử lại'),
             ),
           ],
         ),

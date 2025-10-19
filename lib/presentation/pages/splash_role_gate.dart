@@ -21,8 +21,12 @@ class _SplashRoleGatePageState extends State<SplashRoleGatePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authBloc = context.read<AuthBloc>();
-      if (authBloc.state is AuthInitial) {
+      final state = authBloc.state;
+
+      if (state is AuthInitial) {
         authBloc.add(AuthCheckRequested());
+      } else {
+        _handleAuthState(state);
       }
     });
   }
@@ -33,17 +37,7 @@ class _SplashRoleGatePageState extends State<SplashRoleGatePage> {
       backgroundColor: AppColors.background,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is AuthAuthenticated) {
-            final targetRoute = _mapRoleToRoute(state.user.role);
-            if (targetRoute != null) {
-              context.go(targetRoute);
-            } else {
-              setState(() => _unsupportedRole = state.user.role);
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-            }
-          } else if (state is AuthUnauthenticated) {
-            context.go('/login');
-          }
+          _handleAuthState(state);
         },
         builder: (context, state) {
           if (_unsupportedRole != null) {
@@ -85,6 +79,22 @@ class _SplashRoleGatePageState extends State<SplashRoleGatePage> {
     setState(() => _unsupportedRole = null);
     context.read<AuthBloc>().add(AuthLogoutRequested());
     context.go('/login');
+  }
+
+  void _handleAuthState(AuthState state) {
+    if (!mounted) return;
+
+    if (state is AuthAuthenticated) {
+      final targetRoute = _mapRoleToRoute(state.user.role);
+      if (targetRoute != null) {
+        context.go(targetRoute);
+      } else {
+        setState(() => _unsupportedRole = state.user.role);
+        context.read<AuthBloc>().add(AuthLogoutRequested());
+      }
+    } else if (state is AuthUnauthenticated) {
+      context.go('/login');
+    }
   }
 
   String? _mapRoleToRoute(String? role) {

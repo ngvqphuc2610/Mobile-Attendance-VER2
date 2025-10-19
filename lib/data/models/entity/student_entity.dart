@@ -21,6 +21,25 @@ class StudentEntity extends Equatable {
   });
 
   factory StudentEntity.fromJson(Map<String, dynamic> json) {
+    ProfileEntity? profile;
+    final rawProfile = json['profile'];
+
+    if (rawProfile is Map<String, dynamic>) {
+      profile = ProfileEntity.fromJson(rawProfile);
+    } else if (json.containsKey('full_name') || json.containsKey('code')) {
+      profile = ProfileEntity(
+        id: json['profile_id']?.toString() ?? '',
+        code: json['code']?.toString() ?? '',
+        fullName: json['full_name']?.toString() ?? '',
+        classId: json['class_id']?.toString(),
+        isActive: json['is_active'] == 1 || json['is_active'] == true,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? DateTime.now(),
+        email: json['email']?.toString(),
+        phone: json['phone']?.toString(),
+      );
+    }
+
     return StudentEntity(
       profileId: json['profile_id']?.toString() ?? '',
       classId: json['class_id']?.toString(),
@@ -28,7 +47,7 @@ class StudentEntity extends Equatable {
       mssvCohort: json['mssv_cohort'] != null ? int.tryParse(json['mssv_cohort'].toString()) : null,
       mssvTrackCode: json['mssv_track_code']?.toString(),
       mssvSerial: json['mssv_serial'] != null ? int.tryParse(json['mssv_serial'].toString()) : null,
-      profile: json['profile'] != null ? ProfileEntity.fromJson(json['profile']) : null,
+      profile: profile,
     );
   }
 

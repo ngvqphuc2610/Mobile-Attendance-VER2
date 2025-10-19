@@ -66,3 +66,11 @@ class FilterAttendances extends AttendanceEvent {
   @override
   List<Object> get props => [query];
 }
+class DeleteAttendance extends AttendanceEvent {
+  final String attendanceId;
+
+  const DeleteAttendance(this.attendanceId);
+
+  @override
+  List<Object> get props => [attendanceId];
+}

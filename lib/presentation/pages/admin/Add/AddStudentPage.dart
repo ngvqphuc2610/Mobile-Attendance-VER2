@@ -1,8 +1,11 @@
+
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_theme.dart';
-import '../../../../data/services/api_service.dart';
 import '../../../../core/constants/api_constants.dart';
-// Using ApiService directly for CRUD operations
+import '../../../../data/models/dto/student_dto.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../data/services/student_service.dart';
 
 class AddStudentPage extends StatefulWidget {
   const AddStudentPage({super.key});
@@ -13,66 +16,89 @@ class AddStudentPage extends StatefulWidget {
 
 class _AddStudentPageState extends State<AddStudentPage> {
   final _formKey = GlobalKey<FormState>();
+
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _mssvController = TextEditingController();
 
-  List<Map<String, dynamic>> _classes = [];
+  bool _saving = false;
+  bool _loadingFaculties = false;
+  bool _loadingClasses = false;
+
   List<Map<String, dynamic>> _faculties = [];
+  List<Map<String, dynamic>> _classes = [];
   String? _selectedFacultyId;
   String? _selectedClassId;
-  bool _loading = false;
-  bool _loadingClasses = false;
-  bool _loadingFalculties = false;
-  String? _classError;
-  String? _facultyError;
   Map<String, dynamic>? _mssvInfo;
+
+  String? _facultyError;
+  String? _classError;
 
   @override
   void initState() {
     super.initState();
-    _loadClasses();
-    _loadFaculties();
+    _fetchFaculties();
   }
 
-  Future<void> _loadFaculties() async {
-    setState(() => _loadingFalculties = true);
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _mssvController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchFaculties() async {
+    setState(() {
+      _loadingFaculties = true;
+      _facultyError = null;
+    });
+
     try {
       final response = await ApiService.getList(ApiConstants.faculties);
       setState(() {
         _faculties = List<Map<String, dynamic>>.from(response);
-        _facultyError = null;
+        if (_faculties.isNotEmpty) {
+          _selectedFacultyId = _faculties.first['id']?.toString();
+          _fetchClasses();
+        }
       });
     } catch (e) {
       setState(() {
         _facultyError = 'Lỗi tải danh sách khoa: $e';
       });
     } finally {
-      setState(() => _loadingFalculties = false);
+      setState(() => _loadingFaculties = false);
     }
   }
 
-  Future<void> _loadClasses() async {
+  Future<void> _fetchClasses() async {
     if (_selectedFacultyId == null) {
       setState(() {
         _classes = [];
-        _classError = null;
+        _selectedClassId = null;
       });
       return;
     }
 
-    setState(() => _loadingClasses = true);
+    setState(() {
+      _loadingClasses = true;
+      _classError = null;
+    });
+
     try {
       final response = await ApiService.getList(
         ApiConstants.classes,
         queryParams: {'faculty_id': _selectedFacultyId!},
       );
-
       setState(() {
         _classes = List<Map<String, dynamic>>.from(response);
-        _classError = null;
+        _selectedClassId =
+            _classes.isNotEmpty ? _classes.first['id']?.toString() : null;
       });
     } catch (e) {
       setState(() {
@@ -83,214 +109,289 @@ class _AddStudentPageState extends State<AddStudentPage> {
     }
   }
 
+  void _onMssvChanged(String value) {
+    if (value.length == 10 && RegExp(r'^\d+$').hasMatch(value)) {
+      final cohort = 2000 + int.parse(value.substring(0, 2));
+      final trackCode = value.substring(2, 6);
+      final serial = int.parse(value.substring(6, 10));
+
+      setState(() {
+        _mssvInfo = {
+          'cohort': cohort,
+          'track_code': trackCode,
+          'serial': serial,
+        };
+      });
+    } else {
+      setState(() => _mssvInfo = null);
+    }
+  }
+
+  Future<void> _saveStudent() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
+
+    try {
+      final dto = StudentDto(
+        code: _codeController.text.trim(),
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        classId: _selectedClassId,
+        mssv: _mssvController.text.trim().isEmpty
+            ? null
+            : _mssvController.text.trim(),
+        mssvCohort: _mssvInfo?['cohort'] as int?,
+        mssvTrackCode: _mssvInfo?['track_code'] as String?,
+        mssvSerial: _mssvInfo?['serial'] as int?,
+        isActive: true,
+      );
+
+      await StudentService.createStudent(dto);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thêm sinh viên thành công')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thêm Sinh viên'),
+        title: const Text('Thêm sinh viên'),
         actions: [
           TextButton(
-            onPressed: _loading ? null : _saveStudent,
-            child: _loading
+            onPressed: _saving ? null : _saveStudent,
+            child: _saving
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Lưu', style: TextStyle(color: Colors.white)),
+                : const Text(
+                    'Lưu',
+                    style: TextStyle(color: Colors.black),
+                  ),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSizes.paddingMedium),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
           child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium + viewInsets,
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Mã SV
                 TextFormField(
                   controller: _codeController,
                   decoration: const InputDecoration(
                     labelText: 'Mã sinh viên *',
-                    hintText: 'VD: SV001',
                     prefixIcon: Icon(Icons.badge),
                     border: OutlineInputBorder(),
                   ),
+                  textCapitalization: TextCapitalization.characters,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Vui lòng nhập mã sinh viên';
                     }
                     return null;
                   },
-                  textCapitalization: TextCapitalization.characters,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
-
-                // Họ tên
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Họ tên *',
-                    hintText: 'VD: Nguyễn Văn A',
+                    labelText: 'Họ và tên *',
                     prefixIcon: Icon(Icons.person),
                     border: OutlineInputBorder(),
                   ),
+                  textCapitalization: TextCapitalization.words,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Vui lòng nhập họ tên';
                     }
                     return null;
                   },
-                  textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
-
-                // MSSV (tùy chọn)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: _mssvController,
-                      decoration: const InputDecoration(
-                        labelText: 'MSSV (10 chữ số)',
-                        hintText: 'VD: 2180123456',
-                        prefixIcon: Icon(Icons.numbers),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      maxLength: 10,
-                      onChanged: _onMssvChanged,
-                      validator: (value) {
-                        if (value != null && value.isNotEmpty) {
-                          if (value.length != 10)
-                            return 'MSSV phải có đúng 10 chữ số';
-                          if (!RegExp(r'^\d+$').hasMatch(value))
-                            return 'MSSV chỉ được chứa số';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (_mssvInfo != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Thông tin từ MSSV:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text('Khóa: ${_mssvInfo!['cohort']}'),
-                            Text('Mã hệ: ${_mssvInfo!['track_code']}'),
-                            if (_mssvInfo!['program_track'] != null)
-                              Text(
-                                'Hệ đào tạo: ${_mssvInfo!['program_track']}',
-                              ),
-                            Text('Số thứ tự: ${_mssvInfo!['serial']}'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value != null && value.isNotEmpty) {
+                      final emailReg = RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      );
+                      if (!emailReg.hasMatch(value)) {
+                        return 'Email không hợp lệ';
+                      }
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
-
-                // Dropdown khoa
-                if (_loadingFalculties)
-                  const Center(child: CircularProgressIndicator())
-                else if (_facultyError != null)
-                  Column(
-                    children: [
-                      Text(
-                        _facultyError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _loadFaculties,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Tải lại danh sách khoa'),
-                      ),
-                    ],
-                  )
-                else
-                  DropdownButtonFormField<String>(
-                    value: _selectedFacultyId,
-                    decoration: const InputDecoration(
-                      labelText: 'Khoa *',
-                      prefixIcon: Icon(Icons.school),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      ..._faculties.map(
-                        (faculty) => DropdownMenuItem(
-                          value: faculty['id'],
-                          child: Text(faculty['name']),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFacultyId = value;
-                        _selectedClassId = null; // Reset selected class
-                      });
-                      _loadClasses(); // Load classes for selected faculty
-                    },
-                    validator: (value) =>
-                        value == null ? 'Vui lòng chọn khoa' : null,
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Số điện thoại',
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
                   ),
-
-                // Dropdown lớp
-                if (_loadingClasses)
-                  const Center(child: CircularProgressIndicator())
-                else if (_classError != null)
-                  Column(
-                    children: [
-                      Text(
-                        _classError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _loadClasses,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Tải lại danh sách lớp'),
-                      ),
-                    ],
-                  )
-                else
-                  DropdownButtonFormField<String>(
-                    value: _selectedClassId,
-                    decoration: const InputDecoration(
-                      labelText: 'Lớp học *',
-                      prefixIcon: Icon(Icons.class_),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      ..._classes.map(
-                        (cls) => DropdownMenuItem(
-                          value: cls['id'],
-                          child: Text(cls['name']),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _selectedClassId = value),
-                    validator: (value) =>
-                        value == null ? 'Vui lòng chọn lớp' : null,
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value != null && value.isNotEmpty) {
+                      if (!RegExp(r'^[0-9]{9,11}$').hasMatch(value)) {
+                        return 'Số điện thoại không hợp lệ';
+                      }
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppSizes.paddingMedium),
+                TextFormField(
+                  controller: _mssvController,
+                  maxLength: 10,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'MSSV (10 chữ số)',
+                    prefixIcon: Icon(Icons.numbers),
+                    border: OutlineInputBorder(),
                   ),
-
+                  onChanged: _onMssvChanged,
+                  validator: (value) {
+                    if (value != null && value.isNotEmpty) {
+                      if (value.length != 10) {
+                        return 'MSSV phải đủ 10 chữ số';
+                      }
+                      if (!RegExp(r'^\d+$').hasMatch(value)) {
+                        return 'MSSV chỉ gồm chữ số';
+                      }
+                    }
+                    return null;
+                  },
+                ),
+                if (_mssvInfo != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Khóa: ${_mssvInfo!['cohort']}'),
+                        Text('Mã ngành: ${_mssvInfo!['track_code']}'),
+                        Text('Số thứ tự: ${_mssvInfo!['serial']}'),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSizes.paddingMedium),
+                _loadingFaculties
+                    ? const Center(child: CircularProgressIndicator())
+                    : DropdownButtonFormField<String>(
+                        value: _selectedFacultyId,
+                        decoration: const InputDecoration(
+                          labelText: 'Khoa *',
+                          prefixIcon: Icon(Icons.school),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _faculties
+                            .map(
+                              (faculty) => DropdownMenuItem(
+                                value: faculty['id']?.toString(),
+                                child: Text(faculty['name']?.toString() ?? ''),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedFacultyId = value;
+                            _selectedClassId = null;
+                          });
+                          _fetchClasses();
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Vui lòng chọn khoa';
+                          }
+                          if (_facultyError != null) return _facultyError;
+                          return null;
+                        },
+                      ),
+                if (_facultyError != null && !_loadingFaculties)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _facultyError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                const SizedBox(height: AppSizes.paddingMedium),
+                _loadingClasses
+                    ? const Center(child: CircularProgressIndicator())
+                    : DropdownButtonFormField<String>(
+                        value: _selectedClassId,
+                        decoration: const InputDecoration(
+                          labelText: 'Lớp học *',
+                          prefixIcon: Icon(Icons.class_),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _classes
+                            .map(
+                              (cls) => DropdownMenuItem(
+                                value: cls['id']?.toString(),
+                                child: Text(cls['name']?.toString() ?? ''),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedClassId = value),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Vui lòng chọn lớp';
+                          }
+                          if (_classError != null) return _classError;
+                          return null;
+                        },
+                      ),
+                if (_classError != null && !_loadingClasses)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _classError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 const SizedBox(height: AppSizes.paddingLarge),
                 const Text(
                   '* Trường bắt buộc',
@@ -303,107 +404,6 @@ class _AddStudentPageState extends State<AddStudentPage> {
       ),
     );
   }
-
-  Future<void> _saveStudent() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _loading = true);
-
-    try {
-      // 1. Create profile via API
-      final profileResponse = await ApiService.create('/profiles', {
-        'code': _codeController.text.trim(),
-        'full_name': _nameController.text.trim(),
-        'email': _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-        'phone': _phoneController.text.trim().isEmpty
-            ? null
-            : _phoneController.text.trim(),
-        'class_id': _selectedClassId,
-        'is_active': true,
-      });
-
-      final profileId = profileResponse['id'].toString();
-
-      // 2. Create student record
-      await ApiService.create(ApiConstants.students, {
-        'profile_id': profileId,
-        'class_id': _selectedClassId,
-        'mssv': _mssvController.text.trim().isEmpty
-            ? null
-            : _mssvController.text.trim(),
-        'mssv_cohort': _mssvInfo?['cohort'],
-        'mssv_track_code': _mssvInfo?['track_code'],
-        'mssv_serial': _mssvInfo?['serial'],
-      });
-
-      // 3. Create user role
-      await ApiService.create('/user_roles', {
-        'user_id': profileId,
-        'role': 'student',
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Thêm sinh viên thành công')),
-      );
-
-      Navigator.pop(context, true);
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  void _onMssvChanged(String value) {
-    if (value.length == 10 && RegExp(r'^\d+$').hasMatch(value)) {
-      setState(() {
-        _mssvInfo = _parseMssv(value);
-      });
-    } else {
-      setState(() {
-        _mssvInfo = null;
-      });
-    }
-  }
-
-  Map<String, dynamic> _parseMssv(String mssv) {
-    final cohort = 2000 + int.parse(mssv.substring(0, 2));
-    final trackCode = mssv.substring(2, 6);
-    final serial = int.parse(mssv.substring(6, 10));
-
-    String? programTrack;
-    switch (trackCode) {
-      case '8060':
-        programTrack = 'Đại trà';
-        break;
-      case '8080':
-        programTrack = 'Chất lượng cao (CLC)';
-        break;
-      case '8090':
-        programTrack = 'Việt-Nhật';
-        break;
-      case '8070':
-        programTrack = 'Việt-Hàn';
-        break;
-    }
-
-    return {
-      'cohort': cohort,
-      'track_code': trackCode,
-      'program_track': programTrack,
-      'serial': serial,
-    };
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    _nameController.dispose();
-    _mssvController.dispose();
-    super.dispose();
-  }
 }
+
+

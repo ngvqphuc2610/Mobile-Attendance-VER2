@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_theme.dart';
-import '../../../../data/models/entity/faculty_entity.dart';
-import '../../../../data/services/api_service.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../data/models/dto/teacher_dto.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../data/services/teacher_service.dart';
 
 class EditTeacherPage extends StatefulWidget {
   final Map<String, dynamic> teacher;
@@ -15,56 +17,133 @@ class EditTeacherPage extends StatefulWidget {
 
 class _EditTeacherPageState extends State<EditTeacherPage> {
   final _formKey = GlobalKey<FormState>();
+
   late final TextEditingController _codeController;
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _titleController;
+  late final TextEditingController _officeController;
 
-  String? _selectedFacultyId;
-  List<FacultyEntity> _faculties = [];
-  bool _loadingFaculties = true;
   bool _saving = false;
+  bool _loadingFaculties = false;
   String? _facultyError;
+
+  List<Map<String, dynamic>> _faculties = [];
+  String? _selectedFacultyId;
 
   @override
   void initState() {
     super.initState();
-    _codeController = TextEditingController(text: widget.teacher['code'] ?? '');
-    _nameController = TextEditingController(
-      text: widget.teacher['full_name'] ?? '',
-    );
-    _emailController = TextEditingController(
-      text: widget.teacher['email'] ?? '',
-    );
-    _phoneController = TextEditingController(
-      text: widget.teacher['phone'] ?? '',
-    );
-    _selectedFacultyId = widget.teacher['faculty_id'] as String?;
-    _loadFaculties();
+    _initializeControllers();
+    _fetchFaculties();
   }
 
-  Future<void> _loadFaculties() async {
+  void _initializeControllers() {
+    _codeController =
+        TextEditingController(text: widget.teacher['code']?.toString() ?? '');
+    _nameController = TextEditingController(
+      text: widget.teacher['full_name']?.toString() ?? '',
+    );
+    _emailController = TextEditingController(
+      text: widget.teacher['email']?.toString() ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: widget.teacher['phone']?.toString() ?? '',
+    );
+    _titleController = TextEditingController(
+      text: widget.teacher['title']?.toString() ?? '',
+    );
+    _officeController = TextEditingController(
+      text: widget.teacher['office']?.toString() ?? '',
+    );
+    _selectedFacultyId = widget.teacher['faculty_id']?.toString();
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _titleController.dispose();
+    _officeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchFaculties() async {
+    setState(() {
+      _loadingFaculties = true;
+      _facultyError = null;
+    });
+
     try {
       final response = await ApiService.getList(ApiConstants.faculties);
-
-      _faculties = List<Map<String, dynamic>>.from(
-        response,
-      ).map((json) => FacultyEntity.fromJson(json)).toList();
-      _facultyError = null;
+      setState(() {
+        _faculties = List<Map<String, dynamic>>.from(response);
+        if (_selectedFacultyId == null && _faculties.isNotEmpty) {
+          _selectedFacultyId = _faculties.first['id']?.toString();
+        }
+      });
     } catch (e) {
-      _facultyError = e.toString();
+      setState(() {
+        _facultyError = 'Lỗi tải khoa: $e';
+      });
     } finally {
-      if (mounted) {
-        setState(() => _loadingFaculties = false);
-      }
+      setState(() => _loadingFaculties = false);
+    }
+  }
+
+  Future<void> _updateTeacher() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
+
+    try {
+      final dto = TeacherDto(
+        code: _codeController.text.trim(),
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        facultyId: _selectedFacultyId,
+        title: _titleController.text.trim().isEmpty
+            ? null
+            : _titleController.text.trim(),
+        office: _officeController.text.trim().isEmpty
+            ? null
+            : _officeController.text.trim(),
+      );
+
+      await TeacherService.updateTeacher(
+        widget.teacher['profile_id'].toString(),
+        dto,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cập nhật giảng viên thành công')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sửa giáo viên'),
+        title: const Text('Chỉnh sửa giảng viên'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _updateTeacher,
@@ -74,47 +153,53 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Cập nhật', style: TextStyle(color: Colors.white)),
+                : const Text('Lưu', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSizes.paddingMedium),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
           child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium,
+              AppSizes.paddingMedium + viewInsets,
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextFormField(
                   controller: _codeController,
                   decoration: const InputDecoration(
-                    labelText: 'Mã giáo viên *',
+                    labelText: 'Mã giảng viên *',
                     prefixIcon: Icon(Icons.badge),
                     border: OutlineInputBorder(),
                   ),
+                  textCapitalization: TextCapitalization.characters,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập mã giáo viên';
+                      return 'Vui lòng nhập mã giảng viên';
                     }
                     return null;
                   },
-                  textCapitalization: TextCapitalization.characters,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Họ tên *',
+                    labelText: 'Họ và tên *',
                     prefixIcon: Icon(Icons.person),
                     border: OutlineInputBorder(),
                   ),
+                  textCapitalization: TextCapitalization.words,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Vui lòng nhập họ tên';
                     }
                     return null;
                   },
-                  textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
                 TextFormField(
@@ -127,9 +212,9 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
+                      final emailReg =
+                          RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
+                      if (!emailReg.hasMatch(value)) {
                         return 'Email không hợp lệ';
                       }
                     }
@@ -147,44 +232,67 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
                   keyboardType: TextInputType.phone,
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      if (!RegExp(r'^[0-9]{10,11}$').hasMatch(value)) {
-                        return 'Số điện thoại không hợp lệ (10-11 chữ số)';
+                      if (!RegExp(r'^[0-9]{9,11}$').hasMatch(value)) {
+                        return 'Số điện thoại không hợp lệ';
                       }
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
+                TextFormField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Chức danh',
+                    prefixIcon: Icon(Icons.work_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSizes.paddingMedium),
+                TextFormField(
+                  controller: _officeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phòng làm việc',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSizes.paddingMedium),
                 _loadingFaculties
                     ? const Center(child: CircularProgressIndicator())
-                    : _facultyError != null
-                    ? Text(
-                        _facultyError!,
-                        style: const TextStyle(color: Colors.red),
-                      )
-                    : DropdownButtonFormField<String?>(
+                    : DropdownButtonFormField<String>(
                         value: _selectedFacultyId,
                         decoration: const InputDecoration(
-                          labelText: 'Khoa',
+                          labelText: 'Khoa *',
                           prefixIcon: Icon(Icons.school),
                           border: OutlineInputBorder(),
                         ),
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('Chọn khoa'),
-                          ),
-                          ..._faculties.map(
-                            (faculty) => DropdownMenuItem<String?>(
-                              value: faculty.id,
-                              child: Text(faculty.name),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setState(() => _selectedFacultyId = value);
+                        items: _faculties
+                            .map(
+                              (faculty) => DropdownMenuItem<String>(
+                                value: faculty['id']?.toString(),
+                                child: Text(faculty['name']?.toString() ?? ''),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedFacultyId = value),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Vui lòng chọn khoa';
+                          }
+                          if (_facultyError != null) return _facultyError;
+                          return null;
                         },
                       ),
+                if (_facultyError != null && !_loadingFaculties)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _facultyError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 const SizedBox(height: AppSizes.paddingLarge),
                 const Text(
                   '* Trường bắt buộc',
@@ -196,94 +304,5 @@ class _EditTeacherPageState extends State<EditTeacherPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _updateTeacher() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _saving = true);
-
-    try {
-      final Map<String, dynamic> profileData = {
-        'code': _codeController.text.trim().toUpperCase(),
-        'full_name': _nameController.text.trim(),
-      };
-
-      if (_emailController.text.trim().isNotEmpty) {
-        profileData['email'] = _emailController.text.trim().toLowerCase();
-      } else {
-        profileData['email'] = null;
-      }
-
-      if (_phoneController.text.trim().isNotEmpty) {
-        profileData['phone'] = _phoneController.text.trim();
-      } else {
-        profileData['phone'] = null;
-      }
-
-      await ApiService.update(
-        'profiles',
-        widget.teacher['id'].toString(),
-        profileData,
-      );
-
-      final Map<String, dynamic> teacherData = {
-        'faculty_id': _selectedFacultyId,
-      };
-
-      final existingTeacherList = await ApiService.getList(
-        ApiConstants.teachers,
-        queryParams: {'profile_id': widget.teacher['id'].toString()},
-      );
-
-      if (existingTeacherList.isNotEmpty) {
-        // Update the first matched teacher record
-        final existing = existingTeacherList.first;
-        await ApiService.update(
-          ApiConstants.teachers,
-          existing['id'].toString(),
-          teacherData,
-        );
-      } else {
-        teacherData['profile_id'] = widget.teacher['id'];
-        await ApiService.create(ApiConstants.teachers, teacherData);
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cập nhật giáo viên thành công!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) return;
-      String errorMessage = 'Lỗi: $e';
-      if (e.toString().contains('duplicate key')) {
-        if (e.toString().contains('code')) {
-          errorMessage = 'Mã giáo viên đã tồn tại!';
-        } else if (e.toString().contains('email')) {
-          errorMessage = 'Email đã tồn tại!';
-        }
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    super.dispose();
   }
 }

@@ -18,6 +18,7 @@ abstract class AttendanceRepository {
     String? sectionId,
     String? sessionId,
   });
+  Future<void> deleteAttendance(String id);
   
   Future<Map<String, dynamic>> getAttendanceStats({
     DateTime? fromDate,
@@ -82,6 +83,15 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       );
     } catch (e) {
       throw Exception('Failed to fetch attendance stats: $e');
+    }
+  }
+  
+  @override
+  Future<void> deleteAttendance(String id) async {
+    try {
+      await AttendanceService.deleteAttendance(id);
+    } catch (e) {
+      throw Exception('Failed to delete attendance: $e');
     }
   }
 }

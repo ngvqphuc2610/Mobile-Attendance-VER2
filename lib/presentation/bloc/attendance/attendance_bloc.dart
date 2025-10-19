@@ -13,6 +13,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     on<CreateAttendance>(_onCreateAttendance);
     on<LoadAttendanceStats>(_onLoadAttendanceStats);
     on<FilterAttendances>(_onFilterAttendances);
+    on<DeleteAttendance>(_onDeleteAttendance);
   }
 
   Future<void> _onLoadAttendances(
@@ -103,6 +104,19 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       }).toList();
 
       emit(currentState.copyWith(filteredAttendances: filtered));
+    }
+  }
+
+  Future<void> _onDeleteAttendance(
+    DeleteAttendance event,
+    Emitter<AttendanceState> emit,
+  ) async {
+    try {
+      await _repository.deleteAttendance(event.attendanceId);
+      emit(const AttendanceOperationSuccess('Xóa điểm danh thành công'));
+      add(const LoadAttendances());
+    } catch (e) {
+      emit(AttendanceError(e.toString()));
     }
   }
 }
