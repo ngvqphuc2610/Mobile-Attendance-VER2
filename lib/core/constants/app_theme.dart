@@ -73,4 +73,5 @@ class AppTheme {
       ),
     );
   }
+  static const adminPrimaryColor = Color(0xFF007BFF);
 }

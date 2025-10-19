@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_theme.dart';
-import '../../../../data/models/faculty.dart';
+import '../../../../data/models/entity/faculty_entity.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../core/constants/api_constants.dart';
 
 class EditFacultyPage extends StatefulWidget {
-  final Faculty faculty;
+  final FacultyEntity faculty;
 
   const EditFacultyPage({super.key, required this.faculty});
 

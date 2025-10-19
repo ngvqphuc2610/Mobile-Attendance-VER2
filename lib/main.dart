@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
         ),
         BlocProvider<StudentBloc>(
           create: (context) =>
-              StudentBloc(studentRepository: getIt<StudentRepository>()),
+              StudentBloc(repository: getIt<StudentRepository>()),
         ),
       ],
       child: MaterialApp.router(

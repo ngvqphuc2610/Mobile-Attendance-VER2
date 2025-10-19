@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_theme.dart';
-import '../../../../data/models/faculty.dart';
+import '../../../../data/models/entity/faculty_entity.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../core/constants/api_constants.dart';
 
@@ -21,7 +21,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
   final _officeController = TextEditingController();
 
   String? _selectedFacultyId;
-  List<Faculty> _faculties = [];
+  List<FacultyEntity> _faculties = [];
   bool _loadingFaculties = true;
   bool _saving = false;
   String? _facultyError;
@@ -38,7 +38,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
 
       _faculties = List<Map<String, dynamic>>.from(
         response,
-      ).map((json) => Faculty.fromJson(json)).toList();
+      ).map((json) => FacultyEntity.fromJson(json)).toList();
       _facultyError = null;
     } catch (e) {
       _facultyError = e.toString();

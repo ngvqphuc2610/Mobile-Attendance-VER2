@@ -10,6 +10,10 @@
 - 📊 **Báo cáo**: Thống kê điểm danh theo thời gian
 - 🔐 **Xác thực**: Hỗ trợ vân tay và face ID
 
+- chạy backend : npm run dev
+- chạy backend-ngrok : npm run dev:ngrok
+- chạy flutter : flutter clean - flutter pub get -flutter run
+
 ## Cấu trúc dự án
 
 ```

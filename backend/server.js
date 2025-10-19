@@ -13,6 +13,13 @@ const attendanceRoutes = require('./routes/attendance');
 const classRoutes = require('./routes/classes');
 const facultyRoutes = require('./routes/faculties');
 const accountRoutes = require('./routes/accounts');
+const roomRoutes = require('./routes/rooms');
+const subjectRoutes = require('./routes/subjects');
+const enrollmentRoutes = require('./routes/enrollments');
+const classSectionRoutes = require('./routes/class_section');
+const sectionScheduleRoutes = require('./routes/section_schedules');
+const sessionInstanceRoutes = require('./routes/session_instances');
+const teachingAssignmentRoutes = require('./routes/teaching_assignments');
 
 const socketHandler = require('./sockets/socket');
 const swaggerUi = require('swagger-ui-express');
@@ -68,6 +75,13 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/faculties', facultyRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/class-sections', classSectionRoutes);
+app.use('/api/section-schedules', sectionScheduleRoutes);
+app.use('/api/session-instances', sessionInstanceRoutes);
+app.use('/api/teaching-assignments', teachingAssignmentRoutes);
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -98,5 +112,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
-  if (process.env.NODE_ENV === 'development') console.log('🌐 Start ngrok: npm run ngrok');
+  if (process.env.NODE_ENV === 'development') console.log('🌐 Start ngrok: npm run dev:ngrok');
 });

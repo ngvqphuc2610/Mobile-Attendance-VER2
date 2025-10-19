@@ -3,9 +3,10 @@ import '../../../../core/constants/app_theme.dart';
 import '../../../../data/services/account_service.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../data/models/entity/account_entity.dart';
 
 class EditAccountPage extends StatefulWidget {
-  final Map<String, dynamic> account;
+  final AccountEntity account;
 
   const EditAccountPage({super.key, required this.account});
 
@@ -44,37 +45,20 @@ class _EditAccountPageState extends State<EditAccountPage> {
     _populateFields();
   }
 
-  void _populateFields() {
-    final account = widget.account;
+ void _populateFields() {
+  final acc = widget.account;
 
-    _emailController.text = account['email'] ?? '';
-    _fullNameController.text = account['full_name'] ?? '';
-    _codeController.text = account['code'] ?? '';
-    _phoneController.text = account['phone'] ?? '';
+  // các field cơ bản
+  _emailController.text     = acc.email;
+  _fullNameController.text  = acc.profile?.fullName ?? '';
+  _codeController.text      = acc.profile?.code ?? '';
+  _phoneController.text     = acc.profile?.phone ?? '';
 
-    // Get role
-    final userRoles = account['user_roles'] as List?;
-    if (userRoles != null && userRoles.isNotEmpty) {
-      _selectedRole = userRoles.first['role'] ?? 'student';
-    }
+  // vai trò
+  _selectedRole = acc.userRole?.role ?? 'student';
 
-    // Student data
-    final students = account['students'] as List?;
-    if (students != null && students.isNotEmpty) {
-      final student = students.first;
-      _mssvController.text = student['mssv'] ?? '';
-      _selectedClassId = student['class_id'];
-    }
+}
 
-    // Teacher data
-    final teachers = account['teachers'] as List?;
-    if (teachers != null && teachers.isNotEmpty) {
-      final teacher = teachers.first;
-      _titleController.text = teacher['title'] ?? '';
-      _officeController.text = teacher['office'] ?? '';
-      _selectedFacultyId = teacher['faculty_id'];
-    }
-  }
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
@@ -360,56 +344,53 @@ class _EditAccountPageState extends State<EditAccountPage> {
     );
   }
 
-  Future<void> _saveAccount() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _saveAccount() async {
+  if (!_formKey.currentState!.validate()) return;
+  setState(() => _saving = true);
 
-    setState(() => _saving = true);
+  try {
+    await AccountService.updateAccount(
+      userId: widget.account.id, // <- entity
+      email: _emailController.text.trim(),
+      password: _resetPassword ? _passwordController.text : null,
+      fullName: _fullNameController.text.trim(),
+      code: _codeController.text.trim(),
+      role: _selectedRole,
+      phone: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
+      classId: _selectedClassId,
+      mssv: _mssvController.text.trim().isEmpty
+          ? null
+          : _mssvController.text.trim(),
+      facultyId: _selectedFacultyId,
+      title: _titleController.text.trim().isEmpty
+          ? null
+          : _titleController.text.trim(),
+      office: _officeController.text.trim().isEmpty
+          ? null
+          : _officeController.text.trim(),
+      resetPassword: _resetPassword,
+      newEmail: _emailController.text.trim() != widget.account.email, // <- entity
+    );
 
-    try {
-      await AccountService.updateAccount(
-        userId: widget.account['id'],
-        email: _emailController.text.trim(),
-        password: _resetPassword ? _passwordController.text : null,
-        fullName: _fullNameController.text.trim(),
-        code: _codeController.text.trim(),
-        role: _selectedRole,
-        phone: _phoneController.text.trim().isEmpty
-            ? null
-            : _phoneController.text.trim(),
-        classId: _selectedClassId,
-        mssv: _mssvController.text.trim().isEmpty
-            ? null
-            : _mssvController.text.trim(),
-        facultyId: _selectedFacultyId,
-        title: _titleController.text.trim().isEmpty
-            ? null
-            : _titleController.text.trim(),
-        office: _officeController.text.trim().isEmpty
-            ? null
-            : _officeController.text.trim(),
-        resetPassword: _resetPassword,
-        newEmail: _emailController.text.trim() != widget.account['email'],
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cập nhật tài khoản thành công!'), backgroundColor: Colors.green),
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cập nhật tài khoản thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      Navigator.pop(context, true);
     }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _saving = false);
   }
+}
+
 
   @override
   void dispose() {

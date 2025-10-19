@@ -1,8 +1,10 @@
 import '../../core/constants/api_constants.dart';
+import '../models/entity/teacher_entity.dart';
+import '../models/dto/teacher_dto.dart';
 import 'api_service.dart';
 
 class TeacherService {
-  static Future<List<Map<String, dynamic>>> getTeachers({
+  static Future<List<TeacherEntity>> getTeachers({
     String? facultyId,
     String? search,
   }) async {
@@ -11,53 +13,38 @@ class TeacherService {
     if (facultyId != null) queryParams['faculty_id'] = facultyId;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
     
-    return await ApiService.getList(ApiConstants.teachers, queryParams: queryParams);
+    final response = await ApiService.getList(
+      ApiConstants.teachers,
+      queryParams: queryParams,
+    );
+    
+    return response.map((json) => TeacherEntity.fromJson(json)).toList();
   }
-  
-  static Future<Map<String, dynamic>> createTeacher({
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? facultyId,
-    String? title,
-    String? office,
-    String? password,
-  }) async {
-    return await ApiService.create(ApiConstants.teachers, {
-      'code': code,
-      'full_name': fullName,
-      'email': email,
-      'phone': phone,
-      'faculty_id': facultyId,
-      'title': title,
-      'office': office,
-      'password': password ?? '123456',
-    });
+
+  static Future<TeacherEntity> getTeacherById(String id) async {
+    final response = await ApiService.getById(ApiConstants.teachers, id);
+    return TeacherEntity.fromJson(response);
   }
-  
-  static Future<Map<String, dynamic>> updateTeacher({
-    required String id,
-    required String code,
-    required String fullName,
-    required String email,
-    String? phone,
-    String? facultyId,
-    String? title,
-    String? office,
-  }) async {
-    return await ApiService.update(ApiConstants.teachers, id, {
-      'code': code,
-      'full_name': fullName,
-      'email': email,
-      'phone': phone,
-      'faculty_id': facultyId,
-      'title': title,
-      'office': office,
-    });
+
+  static Future<TeacherEntity> createTeacher(TeacherDto teacherDto) async {
+    final response = await ApiService.create(
+      ApiConstants.teachers,
+      teacherDto.toJson(),
+    );
+    return TeacherEntity.fromJson(response);
   }
-  
-  static Future<Map<String, dynamic>> deleteTeacher(String id) async {
-    return await ApiService.delete(ApiConstants.teachers, id);
+
+  static Future<TeacherEntity> updateTeacher(String id, TeacherDto teacherDto) async {
+    final response = await ApiService.update(
+      ApiConstants.teachers,
+      id,
+      teacherDto.toJson(),
+    );
+    return TeacherEntity.fromJson(response);
+  }
+
+  static Future<void> deleteTeacher(String id) async {
+    await ApiService.delete(ApiConstants.teachers, id);
   }
 }
+

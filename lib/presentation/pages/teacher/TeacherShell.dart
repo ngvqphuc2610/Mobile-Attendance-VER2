@@ -24,21 +24,12 @@ class _TeacherShellState extends State<TeacherShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teacher Portal'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.face_retouching_natural),
-            onPressed: () => Navigator.pushNamed(context, '/face_scan'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService.logout();
-              if (context.mounted)
-                Navigator.pushReplacementNamed(context, '/login');
-            },
-          ),
-        ],
+        title: const Text('Teacher Page'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0.5,
+        centerTitle: true,
+
       ),
       body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: NavigationBar(

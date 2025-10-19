@@ -1,48 +1,79 @@
-import '../models/attendance_model.dart';
+import '../models/entity/attendance_entity.dart';
 import '../services/attendance_service.dart';
 
-class AttendanceRepository {
-  Future<List<AttendanceModel>> getAttendance({
+abstract class AttendanceRepository {
+  Future<List<AttendanceEntity>> getAttendances({
     String? userId,
-    String? fromDate,
-    String? toDate,
-    String? method,
+    String? sectionId,
+    DateTime? fromDate,
+    DateTime? toDate,
+    AttendanceMethod? method,
+  });
+  
+  Future<AttendanceEntity> createAttendance({
+    required String userId,
+    required AttendanceMethod method,
+    double? confidenceScore,
+    String? note,
+    String? sectionId,
+    String? sessionId,
+  });
+  
+  Future<Map<String, dynamic>> getAttendanceStats({
+    DateTime? fromDate,
+    DateTime? toDate,
+  });
+}
+
+class AttendanceRepositoryImpl implements AttendanceRepository {
+  @override
+  Future<List<AttendanceEntity>> getAttendances({
+    String? userId,
+    String? sectionId,
+    DateTime? fromDate,
+    DateTime? toDate,
+    AttendanceMethod? method,
   }) async {
     try {
-      final data = await AttendanceService.getAttendance(
+      return await AttendanceService.getAttendances(
         userId: userId,
+        sectionId: sectionId,
         fromDate: fromDate,
         toDate: toDate,
         method: method,
       );
-      
-      return data.map((json) => AttendanceModel.fromJson(json)).toList();
     } catch (e) {
-      throw Exception('Failed to fetch attendance: $e');
+      throw Exception('Failed to fetch attendances: $e');
     }
   }
 
-  Future<void> recordAttendance({
+  @override
+  Future<AttendanceEntity> createAttendance({
     required String userId,
-    required String method,
+    required AttendanceMethod method,
     double? confidenceScore,
     String? note,
+    String? sectionId,
+    String? sessionId,
   }) async {
     try {
-      await AttendanceService.recordAttendance(
+      return await AttendanceService.createAttendance(
         userId: userId,
         method: method,
         confidenceScore: confidenceScore,
         note: note,
+        sectionId: sectionId,
+        sessionId: sessionId,
       );
     } catch (e) {
-      throw Exception('Failed to record attendance: $e');
+      throw Exception('Failed to create attendance: $e');
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAttendanceStats({
-    String? fromDate,
-    String? toDate,
+  @override
+  Future<Map<String, dynamic>> getAttendanceStats({
+    DateTime? fromDate,
+    DateTime? toDate,
   }) async {
     try {
       return await AttendanceService.getAttendanceStats(
@@ -54,3 +85,4 @@ class AttendanceRepository {
     }
   }
 }
+
