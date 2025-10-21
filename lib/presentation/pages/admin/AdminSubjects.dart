@@ -60,17 +60,21 @@ class _AdminSubjectsState extends State<AdminSubjects> {
     }
   }
 
-  Future<void> _openEditSubject(SubjectEntity subject) async {
-    final updated = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => EditSubjectPage(subject: subject)),
-    );
-    if (!mounted) return;
-    if (updated == true) {
-      context.read<SubjectBloc>().add(const LoadSubjects());
-    }
+Future<void> _openEditSubject(SubjectEntity subject) async {
+  final updated = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<SubjectBloc>(), // dùng cùng instance
+        child: EditSubjectPage(subject: subject),
+      ),
+    ),
+  );
+  if (!mounted) return;
+  if (updated == true) {
+    context.read<SubjectBloc>().add(const LoadSubjects());
   }
-
+}
   void _confirmDelete(SubjectEntity subject) {
     showDialog(
       context: context,

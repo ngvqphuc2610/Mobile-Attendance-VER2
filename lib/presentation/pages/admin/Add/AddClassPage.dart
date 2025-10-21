@@ -15,6 +15,8 @@ class _AddClassPageState extends State<AddClassPage> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
+  final _facultyIdController = TextEditingController();
+  final _cohortIdController = TextEditingController();
 
   bool _saving = false;
 
@@ -101,6 +103,12 @@ class _AddClassPageState extends State<AddClassPage> {
       await ApiService.create(ApiConstants.classes, {
         'code': _codeController.text.trim(),
         'name': _nameController.text.trim(),
+        'faculty_id': _facultyIdController.text.trim().isEmpty
+            ? null
+            : _facultyIdController.text.trim(),
+        'cohort_id': _cohortIdController.text.trim().isEmpty
+            ? null
+            : _cohortIdController.text.trim(),
       });
 
       if (!mounted) return;   

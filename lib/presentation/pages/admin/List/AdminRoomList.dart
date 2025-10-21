@@ -39,13 +39,19 @@ class _AdminRoomListState extends State<AdminRoomList> {
         title: const Text('Xóa phòng'),
         content: Text('Bạn muốn xóa phòng "${room.name}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               context.read<RoomBloc>().add(DeleteRoom(room.id));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Xóa'),
           ),
         ],
@@ -56,7 +62,14 @@ class _AdminRoomListState extends State<AdminRoomList> {
   Future<void> _openAdd() async {
     final created = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const AddRoomPage()),
+      MaterialPageRoute(
+        builder: (_) => const AddRoomPage(),
+        // Nếu sau này AddRoomPage dùng RoomBloc để phát sự kiện:
+        // builder: (_) => BlocProvider.value(
+        //   value: context.read<RoomBloc>(),
+        //   child: const AddRoomPage(),
+        // ),
+      ),
     );
     if (created == true && mounted) {
       context.read<RoomBloc>().add(const LoadRooms());
@@ -66,7 +79,15 @@ class _AdminRoomListState extends State<AdminRoomList> {
   Future<void> _openEdit(RoomEntity room) async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => EditRoomPage(room: room.toJson())),
+      MaterialPageRoute(
+        builder: (_) =>
+            EditRoomPage(room: room), // ✅ truyền entity, không .toJson()
+        // Nếu sau này EditRoomPage dùng RoomBloc:
+        // builder: (_) => BlocProvider.value(
+        //   value: context.read<RoomBloc>(),
+        //   child: EditRoomPage(room: room),
+        // ),
+      ),
     );
     if (updated == true && mounted) {
       context.read<RoomBloc>().add(const LoadRooms());
@@ -80,9 +101,7 @@ class _AdminRoomListState extends State<AdminRoomList> {
         title: const Text('Quản lý phòng học'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(onPressed: _openAdd, icon: const Icon(Icons.add)),
-        ],
+        actions: [IconButton(onPressed: _openAdd, icon: const Icon(Icons.add))],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAdd,
@@ -121,10 +140,14 @@ class _AdminRoomListState extends State<AdminRoomList> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(state.message, style: const TextStyle(color: Colors.red)),
+                        Text(
+                          state.message,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
-                          onPressed: () => context.read<RoomBloc>().add(const LoadRooms()),
+                          onPressed: () =>
+                              context.read<RoomBloc>().add(const LoadRooms()),
                           icon: const Icon(Icons.refresh),
                           label: const Text('Thử lại'),
                         ),
@@ -140,11 +163,18 @@ class _AdminRoomListState extends State<AdminRoomList> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(state.rooms.isEmpty ? Icons.meeting_room_outlined : Icons.search_off,
-                              size: 64, color: Colors.grey),
+                          Icon(
+                            state.rooms.isEmpty
+                                ? Icons.meeting_room_outlined
+                                : Icons.search_off,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(height: 12),
                           Text(
-                            state.rooms.isEmpty ? 'Chưa có phòng nào' : 'Không tìm thấy kết quả',
+                            state.rooms.isEmpty
+                                ? 'Chưa có phòng nào'
+                                : 'Không tìm thấy kết quả',
                             style: const TextStyle(color: Colors.grey),
                           ),
                           const SizedBox(height: 12),
@@ -171,13 +201,19 @@ class _AdminRoomListState extends State<AdminRoomList> {
                       return Card(
                         child: ListTile(
                           onTap: () => _openEdit(r),
-                          title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          title: Text(
+                            r.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (r.code?.isNotEmpty == true) Text('Mã: ${r.code}'),
-                              if (r.capacity != null) Text('Sức chứa: ${r.capacity}'),
-                              if (r.location?.isNotEmpty == true) Text('Khu: ${r.location}'),
+                              if (r.code?.isNotEmpty == true)
+                                Text('Mã: ${r.code}'),
+                              if (r.capacity != null)
+                                Text('Sức chứa: ${r.capacity}'),
+                              if (r.location?.isNotEmpty == true)
+                                Text('Khu: ${r.location}'),
                             ],
                           ),
                           trailing: PopupMenuButton<String>(
@@ -203,8 +239,14 @@ class _AdminRoomListState extends State<AdminRoomList> {
                               PopupMenuItem(
                                 value: 'delete',
                                 child: ListTile(
-                                  leading: Icon(Icons.delete, color: Colors.red),
-                                  title: Text('Xóa', style: TextStyle(color: Colors.red)),
+                                  leading: Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  title: Text(
+                                    'Xóa',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
@@ -219,7 +261,8 @@ class _AdminRoomListState extends State<AdminRoomList> {
                 // Trạng thái khởi tạo
                 return Center(
                   child: ElevatedButton.icon(
-                    onPressed: () => context.read<RoomBloc>().add(const LoadRooms()),
+                    onPressed: () =>
+                        context.read<RoomBloc>().add(const LoadRooms()),
                     icon: const Icon(Icons.download),
                     label: const Text('Tải danh sách phòng'),
                   ),
