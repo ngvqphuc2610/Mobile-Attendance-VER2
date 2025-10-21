@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 enum AttendanceMethod { face, barcode, manual }
 
 class AttendanceEntity extends Equatable {
-  final int id;
+  final String id;
   final String? userId;
   final String? userFullName;
   final String? userCode;
@@ -13,6 +13,7 @@ class AttendanceEntity extends Equatable {
   final String? note;
   final String? sectionId;
   final String? sessionId;
+
 
   const AttendanceEntity({
     required this.id,
@@ -29,7 +30,7 @@ class AttendanceEntity extends Equatable {
 
   factory AttendanceEntity.fromJson(Map<String, dynamic> json) {
     return AttendanceEntity(
-      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      id: json['id']?.toString() ?? '',
       userId: json['user_id']?.toString(),
       method: _parseMethod(json['method']?.toString()),
       userFullName: json['full_name']?.toString(),

@@ -6,7 +6,6 @@ class EnrollmentService {
   const EnrollmentService._();
 
   static Future<List<EnrollmentEntity>> getEnrollments({
-    String? enrollmentId,
     String? sectionId,
     String? studentId,
   }) async {
@@ -30,7 +29,6 @@ class EnrollmentService {
   }
 
   static Future<EnrollmentEntity> createEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   }) async {
@@ -43,11 +41,10 @@ class EnrollmentService {
   }
 
   static Future<void> deleteEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   }) async {
-    await ApiService.deleteByPath('${ApiConstants.enrollments}/$enrollmentId');
+    final compositeId = Uri.encodeComponent('$sectionId:$studentId');
+    await ApiService.deleteByPath('${ApiConstants.enrollments}/$compositeId');
   }
 }
-

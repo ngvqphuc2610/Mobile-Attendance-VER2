@@ -20,12 +20,12 @@ class BiometricAccount {
   });
 
   Map<String, dynamic> toJson() => {
-        'userId': userId,
-        'email': email,
-        'password': password,
-        'fullName': fullName,
-        'role': role,
-      };
+    'userId': userId,
+    'email': email,
+    'password': password,
+    'fullName': fullName,
+    'role': role,
+  };
 
   factory BiometricAccount.fromJson(Map<String, dynamic> json) {
     return BiometricAccount(
@@ -42,8 +42,9 @@ class BiometricAuth {
   static final LocalAuthentication _auth = LocalAuthentication();
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
-  static const AndroidOptions _androidOptions =
-      AndroidOptions(encryptedSharedPreferences: true);
+  static const AndroidOptions _androidOptions = AndroidOptions(
+    encryptedSharedPreferences: true,
+  );
   static const IOSOptions _iosOptions = IOSOptions();
 
   static const String _accountPrefix = 'biometric_account_';
@@ -51,8 +52,10 @@ class BiometricAuth {
 
   static Future<bool> canAuthenticate() async {
     try {
-      return await _auth.canCheckBiometrics &&
-          await _auth.isDeviceSupported();
+      final supported = await _auth.isDeviceSupported();
+      final canCheck = await _auth.canCheckBiometrics;
+      final types = await _auth.getAvailableBiometrics(); // quan trọng
+      return supported && canCheck && types.isNotEmpty;
     } catch (_) {
       return false;
     }

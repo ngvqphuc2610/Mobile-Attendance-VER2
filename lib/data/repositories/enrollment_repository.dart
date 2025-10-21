@@ -3,19 +3,16 @@ import '../services/enrollment_service.dart';
 
 abstract class EnrollmentRepository {
   Future<List<EnrollmentEntity>> getEnrollments({
-    String? enrollmentId,
     String? sectionId,
     String? studentId,
   });
 
   Future<EnrollmentEntity> createEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   });
 
   Future<void> deleteEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   });
@@ -26,13 +23,11 @@ class EnrollmentRepositoryImpl implements EnrollmentRepository {
 
   @override
   Future<List<EnrollmentEntity>> getEnrollments({
-    String? enrollmentId,
     String? sectionId,
     String? studentId,
   }) async {
     try {
       return await EnrollmentService.getEnrollments(
-        enrollmentId: enrollmentId,
         sectionId: sectionId,
         studentId: studentId,
       );
@@ -43,13 +38,11 @@ class EnrollmentRepositoryImpl implements EnrollmentRepository {
 
   @override
   Future<EnrollmentEntity> createEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   }) async {
     try {
       return await EnrollmentService.createEnrollment(
-        enrollmentId: enrollmentId,
         sectionId: sectionId,
         studentId: studentId,
       );
@@ -60,13 +53,11 @@ class EnrollmentRepositoryImpl implements EnrollmentRepository {
 
   @override
   Future<void> deleteEnrollment({
-    required String enrollmentId,
     required String sectionId,
     required String studentId,
   }) async {
     try {
       await EnrollmentService.deleteEnrollment(
-        enrollmentId: enrollmentId,
         sectionId: sectionId,
         studentId: studentId,
       );

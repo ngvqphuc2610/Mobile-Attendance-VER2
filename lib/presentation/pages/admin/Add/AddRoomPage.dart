@@ -40,7 +40,7 @@ class _AddRoomPageState extends State<AddRoomPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Lưu', style: TextStyle(color: Colors.white)),
+                : const Text('Lưu', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
