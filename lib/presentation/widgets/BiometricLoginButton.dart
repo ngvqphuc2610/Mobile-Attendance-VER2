@@ -1,105 +1,89 @@
-import 'dart:io' show Platform;
+// lib/presentation/widgets/BiometricLoginButton.dart
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
-/// Nút đăng nhập sinh trắc kiểu phổ biến (Zalo, banking, ví…)
 class BiometricLoginButton extends StatelessWidget {
   const BiometricLoginButton({
     super.key,
     required this.onPressed,
     this.busy = false,
-    this.label = 'Đăng nhập bằng sinh trắc học',
+    this.size = 56, // đường kính nút
+    this.tooltip = 'Đăng nhập bằng vân tay',
   });
 
   final VoidCallback? onPressed;
   final bool busy;
-  final String label;
+  final double size;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final iconData = Platform.isIOS ? Icons.face_retouching_natural : Icons.fingerprint;
+    final color = Theme.of(context).colorScheme.primary;
     final canPress = onPressed != null && !busy;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      height: 52,
-      width: double.infinity,
-      child: Material(
-        color: Colors.transparent,
-        child: Ink(
-          decoration: BoxDecoration(
-            // Nút pill sáng kiểu modern (giống nhiều app hiện nay)
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: canPress
+    // iOS/web vẫn dùng icon fingerprint để đồng nhất
+    final bool isiOS =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    final iconData = Icons.fingerprint; // luôn là vân tay theo yêu cầu
+
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: Ink(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: canPress
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        color.withOpacity(.20),
+                        color.withOpacity(.10),
+                      ],
+                    )
+                  : null,
+              color: canPress ? null : Colors.black12,
+              border: Border.all(
+                color: canPress ? color.withOpacity(.35) : Colors.black26,
+              ),
+              boxShadow: canPress
                   ? [
-                      colorScheme.primary.withOpacity(.10),
-                      colorScheme.primary.withOpacity(.06),
+                      BoxShadow(
+                        color: color.withOpacity(.18),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
                     ]
-                  : [Colors.black12, Colors.black12],
+                  : null,
             ),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: canPress
-                  ? colorScheme.primary.withOpacity(.25)
-                  : Colors.black12,
-            ),
-            boxShadow: canPress
-                ? [
-                    BoxShadow(
-                      color: colorScheme.primary.withOpacity(.12),
-                      blurRadius: 14,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : null,
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: canPress ? onPressed : null,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Icon/avatar tròn giống nhiều app
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: busy
-                        ? const SizedBox(
-                            key: ValueKey('loading'),
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Container(
-                            key: const ValueKey('icon'),
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary.withOpacity(.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              iconData,
-                              size: 18,
-                              color: colorScheme.primary,
-                            ),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: canPress ? onPressed : null,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: busy
+                      ? const SizedBox(
+                          key: ValueKey('loading'),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            semanticsLabel: 'Đang xác thực sinh trắc học',
                           ),
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      busy ? 'Đang xác thực...' : label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: canPress ? colorScheme.onSurface : Colors.black54,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                    )),
-                  ),
-                ],
+                        )
+                      : Icon(
+                          iconData,
+                          key: const ValueKey('icon'),
+                          size: 28,
+                          color: canPress ? color : Colors.black45,
+                        ),
+                ),
               ),
             ),
           ),

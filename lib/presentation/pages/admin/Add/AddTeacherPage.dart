@@ -21,19 +21,23 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _titleController = TextEditingController();
-  final _officeController = TextEditingController();
 
   bool _saving = false;
   bool _loadingFaculties = false;
+  bool _loadingRooms = false;
   String? _facultyError;
+  String? _roomsError;
 
   List<Map<String, dynamic>> _faculties = [];
+  List<Map<String, dynamic>> _rooms = [];
   String? _selectedFacultyId;
+  String? _selectedRoomId;
 
   @override
   void initState() {
     super.initState();
     _fetchFaculties();
+    _fetchRooms();
   }
 
   @override
@@ -43,7 +47,6 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
     _emailController.dispose();
     _phoneController.dispose();
     _titleController.dispose();
-    _officeController.dispose();
     super.dispose();
   }
 
@@ -52,7 +55,6 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
       _loadingFaculties = true;
       _facultyError = null;
     });
-
     try {
       final response = await ApiService.getList(ApiConstants.faculties);
       setState(() {
@@ -62,26 +64,61 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
         }
       });
     } catch (e) {
-      setState(() {
-        _facultyError = 'Lỗi tải danh sách khoa: $e';
-      });
+      setState(() => _facultyError = 'Lỗi tải danh sách khoa: $e');
     } finally {
       setState(() => _loadingFaculties = false);
     }
+  }
+
+  Future<void> _fetchRooms() async {
+    setState(() {
+      _loadingRooms = true;
+      _roomsError = null;
+    });
+    try {
+      final response = await ApiService.getList(ApiConstants.rooms);
+      setState(() {
+        _rooms = List<Map<String, dynamic>>.from(response);
+        if (_rooms.isNotEmpty) {
+          _selectedRoomId = _rooms.first['id']?.toString();
+        }
+      });
+    } catch (e) {
+      setState(() => _roomsError = 'Không thể tải danh sách phòng: $e');
+    } finally {
+      setState(() => _loadingRooms = false);
+    }
+  }
+
+  String? _resolveOfficeValue() {
+    if (_selectedRoomId == null) return null;
+    Map<String, dynamic>? selectedRoom;
+    for (final room in _rooms) {
+      if (room['id']?.toString() == _selectedRoomId) {
+        selectedRoom = room;
+        break;
+      }
+    }
+    if (selectedRoom == null) return null;
+
+    final name = selectedRoom['name']?.toString();
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+
+    final code = selectedRoom['code']?.toString();
+    if (code != null && code.trim().isNotEmpty) return code.trim();
+
+    return null;
   }
 
   Future<void> _saveTeacher() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
-
     try {
       final dto = TeacherDto(
         code: _codeController.text.trim(),
         fullName: _nameController.text.trim(),
-        email: _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
+        email: _emailController.text.trim(),
         phone: _phoneController.text.trim().isEmpty
             ? null
             : _phoneController.text.trim(),
@@ -89,9 +126,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
         title: _titleController.text.trim().isEmpty
             ? null
             : _titleController.text.trim(),
-        office: _officeController.text.trim().isEmpty
-            ? null
-            : _officeController.text.trim(),
+        office: _resolveOfficeValue(), // lấy từ phòng đã chọn
         isActive: true,
       );
 
@@ -111,8 +146,9 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
       if (e.toString().contains('duplicate')) {
         message = 'Mã hoặc email giảng viên đã tồn tại';
       }
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -130,8 +166,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
             onPressed: _saving ? null : _saveTeacher,
             child: _saving
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 20, height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Text('Lưu', style: TextStyle(color: Colors.white)),
@@ -159,14 +194,11 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.characters,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập mã giảng viên';
-                    }
-                    return null;
-                  },
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Vui lòng nhập mã giảng viên' : null,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
+
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
@@ -175,14 +207,11 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập họ tên';
-                    }
-                    return null;
-                  },
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ tên' : null,
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
+
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -193,16 +222,14 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      final emailReg =
-                          RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                      if (!emailReg.hasMatch(value)) {
-                        return 'Email không hợp lệ';
-                      }
+                      final emailReg = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
+                      if (!emailReg.hasMatch(value)) return 'Email không hợp lệ';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
+
                 TextFormField(
                   controller: _phoneController,
                   decoration: const InputDecoration(
@@ -221,6 +248,7 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                   },
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
+
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(
@@ -230,15 +258,36 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                   ),
                 ),
                 const SizedBox(height: AppSizes.paddingMedium),
-                TextFormField(
-                  controller: _officeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phòng làm việc',
-                    prefixIcon: Icon(Icons.location_on_outlined),
-                    border: OutlineInputBorder(),
+
+                // --- Dropdown phòng làm việc thay vì TextFormField ---
+                _loadingRooms
+                    ? const Center(child: CircularProgressIndicator())
+                    : DropdownButtonFormField<String>(
+                        value: _selectedRoomId,
+                        decoration: const InputDecoration(
+                          labelText: 'Phòng làm việc',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _rooms
+                            .map((room) => DropdownMenuItem<String>(
+                                  value: room['id']?.toString(),
+                                  child: Text(
+                                    room['name']?.toString() ??
+                                        room['code']?.toString() ??
+                                        'Phòng',
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (value) => setState(() => _selectedRoomId = value),
+                      ),
+                if (_roomsError != null && !_loadingRooms)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(_roomsError!, style: const TextStyle(color: Colors.red)),
                   ),
-                ),
                 const SizedBox(height: AppSizes.paddingMedium),
+
                 _loadingFaculties
                     ? const Center(child: CircularProgressIndicator())
                     : DropdownButtonFormField<String>(
@@ -249,19 +298,14 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                           border: OutlineInputBorder(),
                         ),
                         items: _faculties
-                            .map(
-                              (faculty) => DropdownMenuItem<String>(
-                                value: faculty['id']?.toString(),
-                                child: Text(faculty['name']?.toString() ?? ''),
-                              ),
-                            )
+                            .map((faculty) => DropdownMenuItem<String>(
+                                  value: faculty['id']?.toString(),
+                                  child: Text(faculty['name']?.toString() ?? ''),
+                                ))
                             .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedFacultyId = value),
+                        onChanged: (value) => setState(() => _selectedFacultyId = value),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Vui lòng chọn khoa';
-                          }
+                          if (value == null || value.isEmpty) return 'Vui lòng chọn khoa';
                           if (_facultyError != null) return _facultyError;
                           return null;
                         },
@@ -269,16 +313,12 @@ class _AddTeacherPageState extends State<AddTeacherPage> {
                 if (_facultyError != null && !_loadingFaculties)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _facultyError!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
+                    child: Text(_facultyError!, style: const TextStyle(color: Colors.red)),
                   ),
+
                 const SizedBox(height: AppSizes.paddingLarge),
-                const Text(
-                  '* Trường bắt buộc',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+                const Text('* Trường bắt buộc',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           ),

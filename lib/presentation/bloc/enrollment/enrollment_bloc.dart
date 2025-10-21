@@ -1,17 +1,14 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-
 import '../../../data/repositories/enrollment_repository.dart';
 import 'enrollment_event.dart';
 import 'enrollment_state.dart';
 
 class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
   final EnrollmentRepository _repository;
-  String? _lastSectionId;
-  String? _lastStudentId;
 
   EnrollmentBloc({required EnrollmentRepository repository})
-      : _repository = repository,
-        super(EnrollmentInitial()) {
+    : _repository = repository,
+      super(EnrollmentInitial()) {
     on<LoadEnrollments>(_onLoadEnrollments);
     on<CreateEnrollment>(_onCreateEnrollment);
     on<DeleteEnrollment>(_onDeleteEnrollment);
@@ -24,19 +21,18 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
   ) async {
     emit(EnrollmentLoading());
 
-    _lastSectionId = event.sectionId;
-    _lastStudentId = event.studentId;
-
     try {
       final enrollments = await _repository.getEnrollments(
         sectionId: event.sectionId,
         studentId: event.studentId,
       );
 
-      emit(EnrollmentsLoaded(
-        enrollments: enrollments,
-        filteredEnrollments: enrollments,
-      ));
+      emit(
+        EnrollmentsLoaded(
+          enrollments: enrollments,
+          filteredEnrollments: enrollments,
+        ),
+      );
     } catch (e) {
       emit(EnrollmentError(e.toString()));
     }
@@ -52,11 +48,8 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
         studentId: event.studentId,
       );
 
-      emit(const EnrollmentOperationSuccess('Created enrollment successfully'));
-      add(LoadEnrollments(
-        sectionId: _lastSectionId,
-        studentId: _lastStudentId,
-      ));
+      emit(const EnrollmentOperationSuccess('Đăng ký học phần thành công'));
+      add(LoadEnrollments(sectionId: event.sectionId));
     } catch (e) {
       emit(EnrollmentError(e.toString()));
     }
@@ -72,11 +65,8 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
         studentId: event.studentId,
       );
 
-      emit(const EnrollmentOperationSuccess('Deleted enrollment successfully'));
-      add(LoadEnrollments(
-        sectionId: _lastSectionId,
-        studentId: _lastStudentId,
-      ));
+      emit(const EnrollmentOperationSuccess('Hủy đăng ký học phần thành công'));
+      add(LoadEnrollments(sectionId: event.sectionId));
     } catch (e) {
       emit(EnrollmentError(e.toString()));
     }
@@ -87,38 +77,24 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
     Emitter<EnrollmentState> emit,
   ) {
     final currentState = state;
-    if (currentState is! EnrollmentsLoaded) {
-      return;
+    if (currentState is EnrollmentsLoaded) {
+      if (event.query.trim().isEmpty) {
+        emit(
+          currentState.copyWith(filteredEnrollments: currentState.enrollments),
+        );
+        return;
+      }
+
+      final query = event.query.toLowerCase();
+      final filtered = currentState.enrollments.where((enrollment) {
+        final studentName = enrollment.student?.fullName?.toLowerCase() ?? '';
+        final sectionName =
+            enrollment.section?.sectionCode?.toLowerCase() ?? '';
+
+        return studentName.contains(query) || sectionName.contains(query);
+      }).toList();
+
+      emit(currentState.copyWith(filteredEnrollments: filtered));
     }
-
-    final trimmed = event.query.trim();
-    if (trimmed.isEmpty) {
-      emit(currentState.copyWith(
-        filteredEnrollments: currentState.enrollments,
-      ));
-      return;
-    }
-
-    final query = trimmed.toLowerCase();
-    final filtered = currentState.enrollments.where((enrollment) {
-      final candidates = <String?>[
-        enrollment.student?.fullName,
-        enrollment.student?.code,
-        enrollment.studentId,
-        enrollment.section?.sectionCode,
-        enrollment.section?.subject?.name,
-        enrollment.section?.subject?.code,
-        enrollment.sectionId,
-      ];
-
-      return candidates.any((value) => _containsIgnoreCase(value, query));
-    }).toList(growable: false);
-
-    emit(currentState.copyWith(filteredEnrollments: filtered));
-  }
-
-  bool _containsIgnoreCase(String? source, String query) {
-    return source?.toLowerCase().contains(query) ?? false;
   }
 }
-
