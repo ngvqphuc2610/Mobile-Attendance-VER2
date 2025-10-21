@@ -35,11 +35,12 @@ import 'AdminClasses.dart';
 import 'AdminEnrollments.dart';
 import 'AdminFaculties.dart';
 import 'AdminRooms.dart';
-import 'AdminSchedules.dart';
 import 'AdminStudents.dart';
 import 'AdminSubjects.dart';
 import 'AdminTeachers.dart';
 import 'AdminClassSection.dart';
+import 'AdminTeachingAssignments.dart';
+import 'AdminSessionInstances.dart';
 import '../account_page.dart';
 
 class AdminShell extends StatelessWidget {
@@ -137,34 +138,7 @@ class AdminShell extends StatelessWidget {
               _ActionGrid(
                 crossAxisCount: scheduleColumns,
                 items: [
-                  _ActionItem(
-                    label: 'Lịch giảng dạy',
-                    icon: Icons.schedule_outlined,
-                    onTap: () => _openWithMultiBloc(
-                      context,
-                      providers: [
-                        BlocProvider(
-                          create: (_) =>
-                              sl<SectionScheduleBloc>()
-                                ..add(const LoadSectionSchedules()),
-                          lazy: false,
-                        ),
-                        BlocProvider(
-                          create: (_) =>
-                              sl<SessionInstanceBloc>()
-                                ..add(const LoadSessionInstances()),
-                          lazy: false,
-                        ),
-                        BlocProvider(
-                          create: (_) =>
-                              sl<TeachingAssignmentBloc>()
-                                ..add(const LoadTeachingAssignments()),
-                          lazy: false,
-                        ),
-                      ],
-                      page: (_) => const AdminSchedules(),
-                    ),
-                  ),
+                
                   _ActionItem(
                     label: 'Lớp học phần',
                     icon: Icons.class_outlined,
@@ -199,6 +173,39 @@ class AdminShell extends StatelessWidget {
                       page: (_) => const AdminEnrollments(),
                     ),
                   ),
+                  _ActionItem(
+                    label: 'Phân công giảng dạy',
+                    icon: Icons.groups_2_outlined,
+                    onTap: () => _openWithMultiBloc(
+                      context,
+                      providers: [
+                        BlocProvider(
+                          create: (_) =>
+                              sl<TeachingAssignmentBloc>()
+                                ..add(const LoadTeachingAssignments()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<ClassSectionBloc>()
+                                ..add(const LoadClassSections()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<TeacherBloc>()..add(const LoadTeachers()),
+                          lazy: false,
+                        ),
+                      ],
+                      page: (_) => const AdminTeachingAssignments(),
+                    ),
+                  ),
+                  _ActionItem(
+                    label: 'Phiên học',
+                    icon: Icons.schedule_outlined,
+                    onTap: () => _openSimple(context, (_) => const AdminSessionInstances()),
+                  ),
+
                   _ActionItem(
                     label: 'Điểm danh',
                     icon: Icons.check_circle_outline,
