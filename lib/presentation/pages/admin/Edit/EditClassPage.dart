@@ -111,6 +111,8 @@ class _EditClassPageState extends State<EditClassPage> {
         {
           'code': _codeController.text.trim(),
           'name': _nameController.text.trim(),
+          'faculty_id': widget.classEntity['faculty_id'],
+          'cohort_id': widget.classEntity['cohort_id'],
         },
       );
 

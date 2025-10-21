@@ -6,6 +6,8 @@ import '../../../../data/models/entity/class_entity.dart';
 import '../../../bloc/class/class_bloc.dart';
 import '../../../bloc/class/class_event.dart';
 import '../../../bloc/class/class_state.dart';
+import '../Add/AddClassPage.dart';
+import '../Edit/EditClassPage.dart';
 
 class AdminClassList extends StatefulWidget {
   const AdminClassList({super.key});
@@ -15,6 +17,39 @@ class AdminClassList extends StatefulWidget {
 }
 
 class _AdminClassListState extends State<AdminClassList> {
+  // mở thêm lớp
+  Future<void> _openAdd() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddClassPage()),
+    );
+    if (created == true && mounted) {
+      context.read<ClassBloc>().add(const LoadClasses());
+    }
+  }
+
+  // mở sửa lớp
+  Future<void> _openEdit(ClassEntity cls) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditClassPage(
+          classEntity: {
+            'id': cls.id,
+            'code': cls.code ?? '',
+            'name': cls.name,
+            'faculty_id': cls.facultyId,
+            'cohort_id': cls.cohortId,
+            // nếu sau này EditClassPage cần thêm field thì bổ sung ở đây
+          },
+        ),
+      ),
+    );
+    if (updated == true && mounted) {
+      context.read<ClassBloc>().add(const LoadClasses());
+    }
+  }
+
   void _deleteClass(ClassEntity cls) {
     showDialog(
       context: context,
@@ -36,8 +71,7 @@ class _AdminClassListState extends State<AdminClassList> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildBody() {
     return BlocBuilder<ClassBloc, ClassState>(
       builder: (context, state) {
         if (state is ClassLoading) {
@@ -74,6 +108,13 @@ class _AdminClassListState extends State<AdminClassList> {
                     state.classes.isEmpty ? 'Chưa có lớp nào' : 'Không tìm thấy kết quả',
                     style: const TextStyle(color: Colors.grey),
                   ),
+                  const SizedBox(height: 12),
+                  if (state.classes.isEmpty)
+                    ElevatedButton.icon(
+                      onPressed: _openAdd,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Thêm lớp đầu tiên'),
+                    ),
                 ],
               ),
             );
@@ -90,25 +131,35 @@ class _AdminClassListState extends State<AdminClassList> {
               final cls = items[i];
               return Card(
                 child: ListTile(
+                  onTap: () => _openEdit(cls), // chạm để edit nhanh
                   title: Text(cls.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (cls.code?.isNotEmpty == true) Text('Mã lớp: ${cls.code}'),
                       if (cls.facultyName?.isNotEmpty == true) Text('Khoa: ${cls.facultyName}'),
-                      
                     ],
                   ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (v) {
                       switch (v) {
+                        case 'edit':
+                          _openEdit(cls);
+                          break;
                         case 'delete':
                           _deleteClass(cls);
                           break;
-                        // TODO: thêm case 'edit' nếu có trang sửa lớp
                       }
                     },
                     itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit),
+                          title: Text('Sửa'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'delete',
                         child: ListTile(
@@ -134,6 +185,25 @@ class _AdminClassListState extends State<AdminClassList> {
           ),
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Dùng Stack để chèn FAB "Thêm"
+    return Stack(
+      children: [
+        _buildBody(),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            onPressed: _openAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Thêm lớp'),
+          ),
+        ),
+      ],
     );
   }
 }
