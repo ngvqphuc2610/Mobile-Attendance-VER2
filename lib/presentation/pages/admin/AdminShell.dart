@@ -39,6 +39,7 @@ import 'AdminSchedules.dart';
 import 'AdminStudents.dart';
 import 'AdminSubjects.dart';
 import 'AdminTeachers.dart';
+import 'AdminClassSection.dart';
 import '../account_page.dart';
 
 class AdminShell extends StatelessWidget {
@@ -48,7 +49,7 @@ class AdminShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final managementColumns = width >= 420 ? 3 : 2;
-    final scheduleColumns = width >= 420 ? 4 : 3;
+    final scheduleColumns = width >= 420 ? 3 : 2;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -142,22 +143,58 @@ class AdminShell extends StatelessWidget {
                     onTap: () => _openWithMultiBloc(
                       context,
                       providers: [
-                        BlocProvider(create: (_) => sl<SectionScheduleBloc>()..add(const LoadSectionSchedules()), lazy: false),
-                        BlocProvider(create: (_) => sl<SessionInstanceBloc>()..add(const LoadSessionInstances()), lazy: false),
-                        BlocProvider(create: (_) => sl<TeachingAssignmentBloc>()..add(const LoadTeachingAssignments()), lazy: false),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<SectionScheduleBloc>()
+                                ..add(const LoadSectionSchedules()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<SessionInstanceBloc>()
+                                ..add(const LoadSessionInstances()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<TeachingAssignmentBloc>()
+                                ..add(const LoadTeachingAssignments()),
+                          lazy: false,
+                        ),
                       ],
                       page: (_) => const AdminSchedules(),
                     ),
                   ),
+                  _ActionItem(
+                    label: 'Lớp học phần',
+                    icon: Icons.class_outlined,
+                    onTap: () =>
+                        _openSimple(context, (_) => const AdminClassSection()),
+                  ),
+
                   _ActionItem(
                     label: 'Đăng ký học phần',
                     icon: Icons.how_to_reg_outlined,
                     onTap: () => _openWithMultiBloc(
                       context,
                       providers: [
-                        BlocProvider(create: (_) => sl<EnrollmentBloc>()..add(const LoadEnrollments()), lazy: false),
-                        BlocProvider(create: (_) => sl<ClassSectionBloc>()..add(const LoadClassSections()), lazy: false),
-                        BlocProvider(create: (_) => sl<StudentBloc>()..add(const LoadStudents()), lazy: false),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<EnrollmentBloc>()
+                                ..add(const LoadEnrollments()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<ClassSectionBloc>()
+                                ..add(const LoadClassSections()),
+                          lazy: false,
+                        ),
+                        BlocProvider(
+                          create: (_) =>
+                              sl<StudentBloc>()..add(const LoadStudents()),
+                          lazy: false,
+                        ),
                       ],
                       page: (_) => const AdminEnrollments(),
                     ),
@@ -341,6 +378,8 @@ class _ActionTile extends StatelessWidget {
               Text(
                 item.label,
                 textAlign: TextAlign.center,
+                maxLines: 2, // ✅ tránh tràn
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -352,6 +391,3 @@ class _ActionTile extends StatelessWidget {
     );
   }
 }
-
-
-
