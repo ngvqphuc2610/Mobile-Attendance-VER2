@@ -25,4 +25,7 @@ class SessionInstanceRepository {
   Future<Map<String, dynamic>> deleteSessionInstance(String id) async {
     return await SessionInstanceService.deleteSessionInstance(id);
   }
+   Future<Map<String, dynamic>> getById(String id) {
+    return SessionInstanceService.fetchSessionInstanceById(id);
+  }
 }

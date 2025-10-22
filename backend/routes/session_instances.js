@@ -48,6 +48,41 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.execute(
+      `
+      SELECT
+        si.*,
+        cs.section_code,
+        cs.year,
+        cs.semester,
+        sub.code AS subject_code,
+        sub.name AS subject_name,
+        r.code AS room_code,
+        r.name AS room_name
+      FROM session_instances si
+      JOIN class_sections cs ON si.section_id = cs.id
+      LEFT JOIN subjects sub ON cs.subject_id = sub.id
+      LEFT JOIN rooms r ON si.room_id = r.id
+      WHERE si.id = ?
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Session instance not found' });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Get session instance by id error:', error);
+    res.status(500).json({ error: 'Failed to fetch session instance by id' });
+  }
+});
+
+
 router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const {
