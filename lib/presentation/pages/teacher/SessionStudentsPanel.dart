@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:mobile_attendance/data/models/entity/attendance_entity.dart';
+import 'package:mobile_attendance/data/models/entity/enrollment_entity.dart';
 import 'package:mobile_attendance/data/repositories/session_instance_repository.dart';
 import 'package:mobile_attendance/presentation/bloc/attendance/attendance_bloc.dart';
-import 'package:mobile_attendance/presentation/bloc/attendance/attendance_state.dart';
 import 'package:mobile_attendance/presentation/bloc/attendance/attendance_event.dart';
-import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_event.dart';
+import 'package:mobile_attendance/presentation/bloc/attendance/attendance_state.dart';
 import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_bloc.dart';
+import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_event.dart';
 import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_state.dart';
 
 class SessionStudentsPanel extends StatefulWidget {
+  const SessionStudentsPanel({
+    super.key,
+    required this.sessionId,
+    this.sectionId,
+  });
+
   final String sessionId;
-  const SessionStudentsPanel({required this.sessionId});
+  final String? sectionId;
 
   @override
   State<SessionStudentsPanel> createState() => _SessionStudentsPanelState();
@@ -25,34 +33,41 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
   @override
   void initState() {
     super.initState();
-    _loadSectionIdAndData();
+    if (widget.sectionId != null && widget.sectionId!.isNotEmpty) {
+      _sectionId = widget.sectionId;
+      _loadingSection = false;
+      _dispatchLoads(widget.sectionId!);
+    } else {
+      _resolveSectionId();
+    }
   }
 
-  Future<void> _loadSectionIdAndData() async {
+  Future<void> _resolveSectionId() async {
     try {
-      // Lấy section_id từ session_instance
-      // Giả định repository trả về Map có key 'section_id'
       final sessionRepo = SessionInstanceRepository();
-
       final session = await sessionRepo.getById(widget.sessionId);
       final sid = (session['section_id'] ?? '').toString();
-      if (sid.isEmpty) throw Exception('Không lấy được section_id từ session.');
+      if (sid.isEmpty) {
+        throw Exception('Session instance is missing section_id.');
+      }
 
       setState(() {
         _sectionId = sid;
         _loadingSection = false;
       });
 
-      // Sau khi có sectionId, bắn event load enrollments & attendance
-      // ⚠️ Đổi tên event cho khớp code của bạn:
-      context.read<EnrollmentBloc>().add(LoadEnrollmentsBySection(sid));
-      context.read<AttendanceBloc>().add(LoadAttendances(sectionId: sid));
+      _dispatchLoads(sid);
     } catch (e) {
       setState(() {
         _error = e.toString();
         _loadingSection = false;
       });
     }
+  }
+
+  void _dispatchLoads(String sectionId) {
+    context.read<EnrollmentBloc>().add(LoadEnrollmentsBySection(sectionId));
+    context.read<AttendanceBloc>().add(LoadAttendances(sectionId: sectionId, sessionId: widget.sessionId));
   }
 
   @override
@@ -69,221 +84,238 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Lỗi tải dữ liệu buổi học: $_error'),
+          child: Text('Không tải được dữ liệu phiên học: $_error'),
         ),
       );
     }
     if (_sectionId == null) {
-      return const Center(
-        child: Text('Không tìm thấy section cho buổi học này.'),
-      );
+      return const Center(child: Text('Không tìm thấy lớp của phiên học này.'));
     }
 
-    // Dùng MultiBlocBuilder để lấy cả enrollments và attendance
-    return BlocBuilder<EnrollmentBloc, EnrollmentState>(
-      builder: (context, eState) {
-        return BlocBuilder<AttendanceBloc, AttendanceState>(
-          builder: (context, aState) {
-            // loading
-            final loading =
-                eState is EnrollmentLoading || aState is AttendanceLoading;
-            if (loading) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
+    // Lắng nghe kết quả thao tác Attendance để show SnackBar
+    return BlocListener<AttendanceBloc, AttendanceState>(
+      listener: (context, state) {
+        if (!mounted) return;
+        if (state is AttendanceOperationSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
+          );
+        } else if (state is AttendanceError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: ${state.message}')),
+          );
+        }
+      },
+      child: BlocBuilder<EnrollmentBloc, EnrollmentState>(
+        builder: (context, enrollmentState) {
+          return BlocBuilder<AttendanceBloc, AttendanceState>(
+            builder: (context, attendanceState) {
+              final isLoading =
+                  enrollmentState is EnrollmentLoading ||
+                  attendanceState is AttendanceLoading;
+              if (isLoading) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
 
-            // error
-            final eErr = (eState is EnrollmentError) ? eState.message : null;
-            final aErr = (aState is AttendanceError) ? aState.message : null;
-            final err = eErr ?? aErr;
-            if (err != null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(err),
-                ),
-              );
-            }
+              final enrollmentError = enrollmentState is EnrollmentError ? enrollmentState.message : null;
+              final attendanceError = attendanceState is AttendanceError ? attendanceState.message : null;
+              final errorMessage = enrollmentError ?? attendanceError;
+              if (errorMessage != null) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(errorMessage),
+                  ),
+                );
+              }
 
-            // data
-            final enrollments = (eState is EnrollmentsLoaded)
-                ? _normalizeList(eState.enrollments)
-                : const <Map<String, dynamic>>[];
+              final enrollments = enrollmentState is EnrollmentsLoaded
+                  ? _normalizeList(enrollmentState.enrollments)
+                  : const <Map<String, dynamic>>[];
 
-            final attendances = (aState is AttendancesLoaded)
-                ? _normalizeList(aState.attendances)
-                : const <Map<String, dynamic>>[];
+              // Tạo presentMap: userId -> AttendanceEntity (để lấy attendanceId khi cần xóa)
+              final Map<String, AttendanceEntity> presentMap = {};
+              if (attendanceState is AttendancesLoaded) {
+                for (final a in attendanceState.attendances) {
+                  // giả định AttendanceEntity có trường id, userId
+                  final uid = a.userId.toString();
+                  presentMap[uid] = a;
+                }
+              }
 
-            // merge
-            final attendedIds = attendances
-                .map((a) => a['user_id']?.toString())
-                .toSet();
-            final items =
-                enrollments.map<Map<String, dynamic>>((e) {
-                  final id =
-                      e['student_id']?.toString() ??
-                      e['profile_id']?.toString() ??
-                      e['id']?.toString();
-                  return {
-                    'student_id': id,
-                    'code': e['code'] ?? e['mssv'] ?? '',
-                    'full_name': e['full_name'] ?? '',
-                    'present': attendedIds.contains(id),
-                  };
-                }).toList()..sort((a, b) {
-                  final p1 = (b['present'] == true) ? 1 : 0;
-                  final p0 = (a['present'] == true) ? 1 : 0;
-                  if (p1 != p0) return p1.compareTo(p0);
-                  return (a['code'] ?? '').toString().compareTo(
-                    (b['code'] ?? '').toString(),
-                  );
+              // Attendances dạng Map chỉ dùng để fallback (không cần nếu đã có presentMap)
+              final attendances = attendanceState is AttendancesLoaded
+                  ? _normalizeList(attendanceState.attendances)
+                  : const <Map<String, dynamic>>[];
+
+              final attendedIds = presentMap.keys.toSet().isEmpty
+                  ? attendances.map((a) => a['user_id']?.toString()).toSet()
+                  : presentMap.keys.toSet();
+
+              final items = enrollments.map<Map<String, dynamic>>((row) {
+                final id = row['student_id']?.toString() ??
+                    row['profile_id']?.toString() ??
+                    row['id']?.toString();
+
+                final isPresent = attendedIds.contains(id);
+                final attId = isPresent ? presentMap[id]?.id : null;
+
+                return {
+                  'student_id': id,
+                  'code': row['code'] ?? row['mssv'] ?? '',
+                  'full_name': row['full_name'] ?? '',
+                  'present': isPresent,
+                  'attendance_id': attId,
+                };
+              }).toList()
+                ..sort((a, b) {
+                  final aPresent = a['present'] == true ? 1 : 0;
+                  final bPresent = b['present'] == true ? 1 : 0;
+                  if (aPresent != bPresent) return bPresent.compareTo(aPresent);
+                  return (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString());
                 });
 
-            if (items.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Chưa có sinh viên trong lớp này.'),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              padding: const EdgeInsets.all(8),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final s = items[i];
-                final present = s['present'] == true;
-                return ListTile(
-                  leading: CircleAvatar(
-                    child: Text(
-                      (s['code'] ?? '?')
-                          .toString()
-                          .substring(0, 1)
-                          .toUpperCase(),
-                    ),
+              if (items.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Chưa có sinh viên nào đăng ký lớp này.'),
                   ),
-                  title: Text(s['full_name'] ?? '—'),
-                  subtitle: Text(s['code'] ?? ''),
-                  trailing: present
-                      ? const Icon(Icons.check_circle)
-                      : const Icon(Icons.hourglass_bottom),
                 );
-              },
-            );
-          },
-        );
-      },
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(8),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final student = items[index];
+                  final present = student['present'] == true;
+
+                  final bgColor = present
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1);
+
+                  final textColor = present ? Colors.green[800] : Colors.orange[800];
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: ListTile(
+                      title: Text(
+                        student['full_name'] ?? '',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'MSSV: ${student['code'] ?? ''}',
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+
+                      // ✅ Thay trailing thành 2 nút: Có mặt / Vắng
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          // Nút "Có mặt" — chỉ enable khi chưa present
+                          ElevatedButton.icon(
+                            onPressed: present
+                                ? null
+                                : () {
+                                    final userId = student['student_id']?.toString();
+                                    if (userId != null && _sectionId != null) {
+                                      context.read<AttendanceBloc>().add(
+                                            CreateAttendance(
+                                              userId: userId,
+                                              method: AttendanceMethod.manual, // chọn "manual"
+                                              sectionId: _sectionId!,
+                                              sessionId: widget.sessionId,
+                                            ),
+                                          );
+                                    }
+                                  },
+                            icon: const Icon(Icons.check_circle),
+                            label: const Text('Có mặt'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(90, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                          ),
+
+                          // Nút "Vắng" — chỉ enable khi đang present (đã có attendance_id)
+                          OutlinedButton.icon(
+                            onPressed: !present
+                                ? null
+                                : () {
+                                    final attId = student['attendance_id']?.toString();
+                                    if (attId != null && _sectionId != null) {
+                                      context.read<AttendanceBloc>().add(
+                                            DeleteAttendance(
+                                              attendanceId: attId,
+                                              sectionId: _sectionId!,
+                                              sessionId: widget.sessionId,
+                                            ),
+                                          );
+                                    }
+                                  },
+                            icon: const Icon(Icons.remove_circle_outline),
+                            label: const Text('Vắng'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(80, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              side: BorderSide(color: Colors.red.shade300),
+                              foregroundColor: Colors.red.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
-  // Gom state từ 2 Bloc: Enrollment và Attendance
-  Widget _buildList(EnrollmentState? eState, AttendanceState? aState) {
-    // Lấy snapshot hiện tại trong _MergedState
-    final snap = _MergedState.lastOrNew();
-
-    // Cập nhật theo từng state đến
-    if (eState != null) {
-      if (eState is EnrollmentLoading) {
-        snap.loadingEnrollments = true;
-      } else if (eState is EnrollmentError) {
-        snap.error = eState.message;
-        snap.loadingEnrollments = false;
-      } else if (eState is EnrollmentsLoaded) {
-        // Giả định eState.enrollments là List<Map> có {student_id, code, full_name}
-        snap.enrollments = _normalizeList(eState.enrollments);
-        snap.loadingEnrollments = false;
-      }
-    }
-
-    if (aState != null) {
-      if (aState is AttendanceLoading) {
-        snap.loadingAttendance = true;
-      } else if (aState is AttendanceError) {
-        snap.error = aState.message;
-        snap.loadingAttendance = false;
-      } else if (aState is AttendancesLoaded) {
-        // Giả định aState.items là List<Map> có {user_id, at_time}
-        snap.attendances = _normalizeList(aState.attendances);
-        snap.loadingAttendance = false;
-      }
-    }
-
-    // Nếu đã có đủ dữ liệu, merge danh sách
-    if (!snap.loadingEnrollments &&
-        !snap.loadingAttendance &&
-        snap.error == null) {
-      final attendedIds = snap.attendances
-          .map((a) => a['user_id']?.toString())
-          .toSet();
-      snap.items =
-          snap.enrollments.map<Map<String, dynamic>>((e) {
-            final id =
-                e['student_id']?.toString() ??
-                e['profile_id']?.toString() ??
-                e['id']?.toString();
-            return {
-              'student_id': id,
-              'code': e['code'] ?? e['mssv'] ?? '',
-              'full_name': e['full_name'] ?? '',
-              'present': attendedIds.contains(id),
-            };
-          }).toList()..sort((a, b) {
-            // Ưu tiên đã điểm danh lên trước
-            final p1 = (b['present'] == true) ? 1 : 0;
-            final p0 = (a['present'] == true) ? 1 : 0;
-            if (p1 != p0) return p1.compareTo(p0);
-            return (a['code'] ?? '').toString().compareTo(
-              (b['code'] ?? '').toString(),
-            );
-          });
-    }
-
-    // Lưu snapshot “toàn cục” để MultiBlocBuilder builder đọc được
-    _MergedState.last = snap;
-
-    // Trả về SizedBox rỗng – phần render chính ở builder của MultiBlocBuilder
-    return const SizedBox.shrink();
-  }
-
-  List<Map<String, dynamic>> _normalizeList(dynamic v) {
-    if (v is List<Map<String, dynamic>>) return v;
-    if (v is List) {
-      return v
-          .map<Map<String, dynamic>>(
-            (e) => (e is Map)
-                ? Map<String, dynamic>.from(e)
-                : {'raw': e.toString()},
-          )
-          .toList();
+  List<Map<String, dynamic>> _normalizeList(dynamic value) {
+    if (value is List<Map<String, dynamic>>) return value;
+    if (value is List) {
+      return value.map<Map<String, dynamic>>((item) {
+        if (item is EnrollmentEntity) {
+          return {
+            'student_id': item.studentId,
+            'profile_id': item.student?.id,
+            'code': item.student?.code ?? '',
+            'full_name': item.student?.fullName ?? '',
+          };
+        }
+        if (item is AttendanceEntity) {
+          return {
+            'id': item.id, // ✅ để có thể lấy lại khi cần (fallback)
+            'user_id': item.userId,
+            'code': item.userCode ?? '',
+            'full_name': item.userFullName ?? '',
+            'present': true,
+          };
+        }
+        if (item is Map) {
+          return Map<String, dynamic>.from(item);
+        }
+        return {'raw': item.toString()};
+      }).toList();
     }
     return const [];
   }
-}
-
-// ---------- “snapshot” tạm để gộp 2 state ----------
-class _MergedState {
-  _MergedState();
-
-  static _MergedState? _last;
-  static _MergedState lastOrNew() => _last ??= _MergedState();
-  static set last(_MergedState v) => _last = v;
-  static _MergedState get last => _last ??= _MergedState();
-
-  // data
-  List<Map<String, dynamic>> enrollments = const [];
-  List<Map<String, dynamic>> attendances = const [];
-  List<Map<String, dynamic>> items = const [];
-
-  // flags
-  bool loadingEnrollments = true;
-  bool loadingAttendance = true;
-  String? error;
-
-  bool get loading => loadingEnrollments || loadingAttendance;
 }

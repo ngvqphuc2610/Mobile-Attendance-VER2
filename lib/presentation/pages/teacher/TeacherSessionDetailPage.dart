@@ -1,19 +1,19 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:mobile_attendance/core/constants/app_theme.dart';
 import 'package:mobile_attendance/core/di/dependency_injection.dart';
-import 'package:mobile_attendance/data/models/entity/session_checkin_token.dart';
-import 'package:mobile_attendance/presentation/bloc/session_checkin_token/session_checkin_token_bloc.dart';
-import 'package:mobile_attendance/presentation/bloc/session_checkin_token/session_checkin_token_event.dart';
-import 'package:mobile_attendance/presentation/bloc/session_checkin_token/session_checkin_token_state.dart';
 import 'package:mobile_attendance/presentation/widgets/loading_widget.dart';
 
+import '../../bloc/enrollment/enrollment_bloc.dart';
+import '../../bloc/attendance/attendance_bloc.dart';
+
+import '../../bloc/session_checkin_token/session_checkin_token_bloc.dart';
+import '../../bloc/session_checkin_token/session_checkin_token_event.dart';
+import '../../bloc/session_checkin_token/session_checkin_token_state.dart';
+
 import 'SessionStudentsPanel.dart';
+import 'TeacherQrDisplayPage.dart';
 
 class TeacherSessionDetailPage extends StatelessWidget {
   final String sessionId;
@@ -37,16 +37,21 @@ class TeacherSessionDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(subjectName ?? 'Session detail'),
-        backgroundColor: AppTheme.adminPrimaryColor,
-      ),
-      body: BlocProvider<SessionCheckinTokenBloc>(
-        create: (_) =>
-            sl<SessionCheckinTokenBloc>()
-              ..add(LoadSessionCheckinTokens(sessionId: sessionId)),
-        child: _TeacherSessionDetailBody(
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<SessionCheckinTokenBloc>(
+          create: (_) => sl<SessionCheckinTokenBloc>()
+            ..add(LoadSessionCheckinTokens(sessionId: sessionId)),
+        ),
+        BlocProvider<EnrollmentBloc>(create: (_) => sl<EnrollmentBloc>()),
+        BlocProvider<AttendanceBloc>(create: (_) => sl<AttendanceBloc>()),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(subjectName ?? 'Session detail'),
+          backgroundColor: AppTheme.adminPrimaryColor,
+        ),
+        body: _TeacherSessionDetailBody(
           sessionId: sessionId,
           sectionId: sectionId,
           sectionCode: sectionCode,
@@ -55,8 +60,8 @@ class TeacherSessionDetailPage extends StatelessWidget {
           startsAt: startsAt,
           endsAt: endsAt,
         ),
+        floatingActionButton: _FabActions(sessionId: sessionId),
       ),
-      floatingActionButton: _FabActions(sessionId: sessionId),
     );
   }
 }
@@ -92,18 +97,26 @@ class _TeacherSessionDetailBody extends StatelessWidget {
           endsAt: endsAt,
         ),
         const SizedBox(height: 12),
+
+        /// Hiển thị trạng thái token + điều hướng khi mở token thành công
         BlocConsumer<SessionCheckinTokenBloc, SessionCheckinTokenState>(
           listener: (context, state) {
             if (state is SessionCheckinTokenOperationSuccess) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(state.message)));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(state.message)));
             }
+
             if (state is SessionCheckinTokenError) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.message),
-                  backgroundColor: Colors.red,
+                SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+              );
+            }
+
+            // ✅ Khi Open thành công → chuyển sang trang QR
+            if (state is SessionCheckinTokenOpened) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TeacherQrDisplayPage(token: state.token),
                 ),
               );
             }
@@ -128,19 +141,14 @@ class _TeacherSessionDetailBody extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.error_outline,
-                        size: 36,
-                        color: Colors.red,
-                      ),
+                      const Icon(Icons.error_outline, size: 36, color: Colors.red),
                       const SizedBox(height: 12),
                       Text(state.message, textAlign: TextAlign.center),
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
-                        onPressed: () =>
-                            context.read<SessionCheckinTokenBloc>().add(
-                              LoadSessionCheckinTokens(sessionId: sessionId),
-                            ),
+                        onPressed: () => context
+                            .read<SessionCheckinTokenBloc>()
+                            .add(LoadSessionCheckinTokens(sessionId: sessionId)),
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                       ),
@@ -150,37 +158,56 @@ class _TeacherSessionDetailBody extends StatelessWidget {
               );
             }
 
-            if (state is SessionCheckinTokenOpened) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _TokenCard(child: _ActiveTokenPanel(token: state.token)),
-              );
-            }
-
+            // Nếu có token active (trở lại trang khi token còn hiệu lực) → cho nút mở trang QR
             if (state is SessionCheckinTokensLoaded) {
               final active = state.tokens.where((e) => e.isActive).toList();
               if (active.isNotEmpty) {
+                final token = active.first;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _TokenCard(
-                    child: _ActiveTokenPanel(token: active.first),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.qr_code_2, size: 40),
+                        const SizedBox(height: 8),
+                        const Text('A QR token is active for this session.'),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => TeacherQrDisplayPage(token: token),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Open QR'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
-              return const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: _TokenCard(child: _EmptyState()),
-              );
             }
 
+            // Mặc định: chưa có token
             return const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: _TokenCard(child: _EmptyState()),
             );
           },
         ),
+
         const SizedBox(height: 16),
-        Expanded(child: SessionStudentsPanel(sessionId: sessionId)),
+
+        // Danh sách sinh viên + trạng thái điểm danh
+        Expanded(
+          child: SessionStudentsPanel(
+            sessionId: sessionId,
+            sectionId: sectionId,
+          ),
+        ),
       ],
     );
   }
@@ -205,99 +232,6 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _ActiveTokenPanel extends StatefulWidget {
-  final SessionCheckinToken token;
-  const _ActiveTokenPanel({required this.token});
-
-  @override
-  State<_ActiveTokenPanel> createState() => _ActiveTokenPanelState();
-}
-
-class _ActiveTokenPanelState extends State<_ActiveTokenPanel> {
-  late Duration _remain;
-
-  @override
-  void initState() {
-    super.initState();
-    _remain = _safeRemain(widget.token.expiresAt);
-    _ticker.start();
-  }
-
-  Duration _safeRemain(DateTime expiresAt) {
-    final diff = expiresAt.difference(DateTime.now());
-    return diff.isNegative ? Duration.zero : diff;
-  }
-
-  late final Ticker _ticker = Ticker((_) {
-    final remain = _safeRemain(widget.token.expiresAt);
-    if (!mounted) return;
-    setState(() => _remain = remain);
-    if (remain == Duration.zero) {
-      _ticker.stop();
-    }
-  });
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final payload = jsonEncode({
-      'session_id': widget.token.sessionId,
-      'token_id': widget.token.id,
-      'nonce': widget.token.nonce,
-      'version': 1,
-    });
-
-    return Column(
-      children: [
-        Text('PIN CODE', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        SelectableText(
-          widget.token.pin4,
-          style: const TextStyle(
-            fontSize: 40,
-            letterSpacing: 8,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 16),
-        QrImageView(data: payload, size: 220, backgroundColor: Colors.white),
-        const SizedBox(height: 16),
-        Text(
-          'Time left: ${_formatRemain(_remain)}',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Expires at ${_formatDate(widget.token.expiresAt)}',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
-        ),
-      ],
-    );
-  }
-
-  String _formatRemain(Duration value) {
-    final mm = value.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final ss = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$mm:$ss';
-  }
-
-  String _formatDate(DateTime dt) {
-    final local = dt.toLocal();
-    final day = '${_two(local.day)}/${_two(local.month)}/${local.year}';
-    final time = '${_two(local.hour)}:${_two(local.minute)}';
-    return '$day $time';
-  }
-
-  String _two(int value) => value.toString().padLeft(2, '0');
-}
-
 class _FabActions extends StatelessWidget {
   final String sessionId;
   const _FabActions({required this.sessionId});
@@ -312,11 +246,12 @@ class _FabActions extends StatelessWidget {
           heroTag: 'open',
           onPressed: () {
             context.read<SessionCheckinTokenBloc>().add(
-              OpenSessionCheckinToken(
-                sessionId: sessionId,
-                durationSeconds: 180,
-              ),
-            );
+                  //cho giới hạn 3p
+                  OpenSessionCheckinToken(
+                    sessionId: sessionId,
+                    durationSeconds: 180,
+                  ),
+                );
           },
           icon: const Icon(Icons.play_arrow),
           label: const Text('Open'),
@@ -324,9 +259,9 @@ class _FabActions extends StatelessWidget {
         FloatingActionButton.extended(
           heroTag: 'extend',
           onPressed: () {
-            context.read<SessionCheckinTokenBloc>().add(
-              ExtendSessionCheckinToken(sessionId: sessionId, addSeconds: 120),
-            );
+            context
+                .read<SessionCheckinTokenBloc>()
+                .add(ExtendSessionCheckinToken(sessionId: sessionId, addSeconds: 120));
           },
           icon: const Icon(Icons.more_time),
           label: const Text('Extend'),
@@ -335,9 +270,7 @@ class _FabActions extends StatelessWidget {
         FloatingActionButton.extended(
           heroTag: 'close',
           onPressed: () {
-            context.read<SessionCheckinTokenBloc>().add(
-              CloseSessionCheckinToken(sessionId),
-            );
+            context.read<SessionCheckinTokenBloc>().add(CloseSessionCheckinToken(sessionId));
           },
           icon: const Icon(Icons.stop),
           label: const Text('Close'),
@@ -373,20 +306,15 @@ class _SessionInfoHeader extends StatelessWidget {
         children: [
           Text(
             subjectName ?? 'Session',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
             [
-              if (sectionCode != null && sectionCode!.isNotEmpty)
-                'Section $sectionCode',
+              if (sectionCode != null && sectionCode!.isNotEmpty) 'Section $sectionCode',
               if (roomName != null && roomName!.isNotEmpty) 'Room ${roomName!}',
-            ].join(' • '),
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+            ].join(' | '),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
           ),
           if (timeRange.isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -396,9 +324,7 @@ class _SessionInfoHeader extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   timeRange,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -411,8 +337,7 @@ class _SessionInfoHeader extends StatelessWidget {
   String _formatRange(DateTime? start, DateTime? end) {
     if (start == null) return '';
     final localStart = start.toLocal();
-    final day =
-        '${_two(localStart.day)}/${_two(localStart.month)}/${localStart.year}';
+    final day = '${_two(localStart.day)}/${_two(localStart.month)}/${localStart.year}';
     final startTime = '${_two(localStart.hour)}:${_two(localStart.minute)}';
     if (end == null) {
       return '$day $startTime';

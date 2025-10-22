@@ -11,6 +11,7 @@ abstract class AttendanceEvent extends Equatable {
 class LoadAttendances extends AttendanceEvent {
   final String? userId;
   final String? sectionId;
+  final String? sessionId;
   final DateTime? fromDate;
   final DateTime? toDate;
   final AttendanceMethod? method;
@@ -18,13 +19,14 @@ class LoadAttendances extends AttendanceEvent {
   const LoadAttendances({
     this.userId,
     this.sectionId,
+    this.sessionId,
     this.fromDate,
     this.toDate,
     this.method,
   });
 
   @override
-  List<Object?> get props => [userId, sectionId, fromDate, toDate, method];
+  List<Object?> get props => [userId, sectionId, sessionId, fromDate, toDate, method];
 }
 
 class CreateAttendance extends AttendanceEvent {
@@ -32,7 +34,7 @@ class CreateAttendance extends AttendanceEvent {
   final AttendanceMethod method;
   final double? confidenceScore;
   final String? note;
-  final String? sectionId;
+  final String sectionId;
   final String? sessionId;
 
   const CreateAttendance({
@@ -40,7 +42,7 @@ class CreateAttendance extends AttendanceEvent {
     required this.method,
     this.confidenceScore,
     this.note,
-    this.sectionId,
+    required this.sectionId,
     this.sessionId,
   });
 
@@ -66,14 +68,24 @@ class FilterAttendances extends AttendanceEvent {
   @override
   List<Object> get props => [query];
 }
+
+/// Đổi sang tham số đặt tên để đồng nhất cách gọi:
+/// DeleteAttendance(attendanceId: '...', sectionId: '...', sessionId: '...')
 class DeleteAttendance extends AttendanceEvent {
   final String attendanceId;
+  final String? sectionId;
+  final String? sessionId;
 
-  const DeleteAttendance(this.attendanceId);
+  const DeleteAttendance({
+    required this.attendanceId,
+    this.sectionId,
+    this.sessionId,
+  });
 
   @override
-  List<Object> get props => [attendanceId];
+  List<Object?> get props => [attendanceId, sectionId, sessionId];
 }
+
 class LoadAttendancesBySession extends AttendanceEvent {
   final String sessionId;
 

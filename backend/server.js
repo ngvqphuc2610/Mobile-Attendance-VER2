@@ -20,7 +20,7 @@ const classSectionRoutes = require('./routes/class_section');
 const sectionScheduleRoutes = require('./routes/section_schedules');
 const sessionInstanceRoutes = require('./routes/session_instances');
 const teachingAssignmentRoutes = require('./routes/teaching_assignments');
-const sessionCheckingTokenRoutes = require('./routes/session_checkin_token.js');
+const sessionCheckinTokenRoutes = require('./routes/session_checkin_token.js');
 
 const socketHandler = require('./sockets/socket');
 const swaggerUi = require('swagger-ui-express');
@@ -83,7 +83,7 @@ app.use('/api/class-sections', classSectionRoutes);
 app.use('/api/section-schedules', sectionScheduleRoutes);
 app.use('/api/session-instances', sessionInstanceRoutes);
 app.use('/api/teaching-assignments', teachingAssignmentRoutes);
-app.use('/api/session-checkin-tokens', sessionCheckingTokenRoutes);
+app.use('/api/session-checkin-tokens', sessionCheckinTokenRoutes);
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

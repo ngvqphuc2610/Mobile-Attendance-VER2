@@ -5,6 +5,7 @@ abstract class AttendanceRepository {
   Future<List<AttendanceEntity>> getAttendances({
     String? userId,
     String? sectionId,
+    String? sessionId,
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
@@ -31,6 +32,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   Future<List<AttendanceEntity>> getAttendances({
     String? userId,
     String? sectionId,
+    String? sessionId,
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
@@ -39,6 +41,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       return await AttendanceService.getAttendances(
         userId: userId,
         sectionId: sectionId,
+        sessionId: sessionId,
         fromDate: fromDate,
         toDate: toDate,
         method: method,
