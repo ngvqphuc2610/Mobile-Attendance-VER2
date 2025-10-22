@@ -13,6 +13,8 @@ import '../../data/repositories/student_repository.dart';
 import '../../data/repositories/subject_repository.dart';
 import '../../data/repositories/teacher_repository.dart';
 import '../../data/repositories/teaching_assignment_repository.dart';
+import '../../data/repositories/session_checkin_token_repository.dart';
+
 import '../../presentation/bloc/attendance/attendance_bloc.dart';
 import '../../presentation/bloc/auth/auth_bloc.dart';
 import '../../presentation/bloc/account/account_bloc.dart';
@@ -26,6 +28,7 @@ import '../../presentation/bloc/student/student_bloc.dart';
 import '../../presentation/bloc/subject/subject_bloc.dart';
 import '../../presentation/bloc/teacher/teacher_bloc.dart';
 import '../../presentation/bloc/teaching_assignment/teaching_assignment_bloc.dart';
+import '../../presentation/bloc/session_checkin_token/session_checkin_token_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 final GetIt sl = getIt;
@@ -61,6 +64,9 @@ Future<void> setupDependencyInjection() async {
   getIt.registerLazySingleton<EnrollmentRepository>(
     () => EnrollmentRepositoryImpl(),
   );
+  getIt.registerLazySingleton<SessionCheckinTokenRepository>(
+    () => SessionCheckinTokenRepository(),
+  );
 
   // BLoCs
   getIt.registerFactory<AuthBloc>(() => AuthBloc(authRepository: getIt()));
@@ -91,5 +97,8 @@ Future<void> setupDependencyInjection() async {
   );
   getIt.registerFactory<AccountBloc>(
     () => AccountBloc(repository: getIt()),
+  );
+  getIt.registerFactory<SessionCheckinTokenBloc>(
+    () => SessionCheckinTokenBloc(repository: getIt()),
   );
 }

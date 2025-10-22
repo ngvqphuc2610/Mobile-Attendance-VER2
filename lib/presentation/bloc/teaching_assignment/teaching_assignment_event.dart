@@ -8,7 +8,12 @@ abstract class TeachingAssignmentEvent extends Equatable {
 }
 
 class LoadTeachingAssignments extends TeachingAssignmentEvent {
-  const LoadTeachingAssignments();
+  final String? teacherId; // ← THÊM teacherId để filter theo giáo viên
+  
+  const LoadTeachingAssignments({this.teacherId});
+  
+  @override
+  List<Object?> get props => [teacherId];
 }
 
 class CreateTeachingAssignment extends TeachingAssignmentEvent {

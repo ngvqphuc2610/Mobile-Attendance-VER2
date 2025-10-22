@@ -23,7 +23,11 @@ class TeachingAssignmentBloc extends Bloc<TeachingAssignmentEvent, TeachingAssig
     emit(TeachingAssignmentLoading());
 
     try {
-      final assignments = await _repository.getTeachingAssignments();
+      // ✅ Sử dụng teacherId từ event
+      final assignments = await _repository.getTeachingAssignments(
+        teacherId: event.teacherId,
+      );
+      
       emit(TeachingAssignmentsLoaded(
         assignments: assignments,
         filteredAssignments: assignments,
@@ -40,6 +44,7 @@ class TeachingAssignmentBloc extends Bloc<TeachingAssignmentEvent, TeachingAssig
     try {
       await _repository.createTeachingAssignmentFromPayload(event.payload);
       emit(const TeachingAssignmentOperationSuccess('Phân công giảng dạy thành công'));
+      // Reload tất cả (dành cho admin)
       add(const LoadTeachingAssignments());
     } catch (e) {
       emit(TeachingAssignmentError(e.toString()));
@@ -53,6 +58,7 @@ class TeachingAssignmentBloc extends Bloc<TeachingAssignmentEvent, TeachingAssig
     try {
       await _repository.updateTeachingAssignmentFromPayload(event.id, event.payload);
       emit(const TeachingAssignmentOperationSuccess('Cập nhật phân công thành công'));
+      // Reload tất cả (dành cho admin)
       add(const LoadTeachingAssignments());
     } catch (e) {
       emit(TeachingAssignmentError(e.toString()));
@@ -66,6 +72,7 @@ class TeachingAssignmentBloc extends Bloc<TeachingAssignmentEvent, TeachingAssig
     try {
       await _repository.deleteTeachingAssignment(event.id);
       emit(const TeachingAssignmentOperationSuccess('Xóa phân công thành công'));
+      // Reload tất cả (dành cho admin)
       add(const LoadTeachingAssignments());
     } catch (e) {
       emit(TeachingAssignmentError(e.toString()));
@@ -90,10 +97,18 @@ class TeachingAssignmentBloc extends Bloc<TeachingAssignmentEvent, TeachingAssig
         final teacherName = assignment['teacher_name']?.toString().toLowerCase() ?? '';
         final subjectName = assignment['subject_name']?.toString().toLowerCase() ?? '';
         final sectionCode = assignment['section_code']?.toString().toLowerCase() ?? '';
+        final subjectCode = assignment['subject_code']?.toString().toLowerCase() ?? '';
+        final year = assignment['year']?.toString().toLowerCase() ?? '';
+        final semester = assignment['semester']?.toString().toLowerCase() ?? '';
+        final role = assignment['role']?.toString().toLowerCase() ?? '';
 
         return teacherName.contains(query) ||
             subjectName.contains(query) ||
-            sectionCode.contains(query);
+            subjectCode.contains(query) ||
+            sectionCode.contains(query) ||
+            year.contains(query) ||
+            semester.contains(query) ||
+            role.contains(query);
       }).toList();
 
       emit(currentState.copyWith(filteredAssignments: filtered));

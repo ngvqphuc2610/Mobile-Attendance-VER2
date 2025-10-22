@@ -54,3 +54,12 @@ class FilterEnrollments extends EnrollmentEvent {
   @override
   List<Object?> get props => [query];
 }
+
+class LoadEnrollmentsBySection extends EnrollmentEvent {
+  final String sectionId;
+
+  const LoadEnrollmentsBySection(this.sectionId);
+
+  @override
+  List<Object?> get props => [sectionId];
+}

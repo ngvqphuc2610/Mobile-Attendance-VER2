@@ -264,4 +264,47 @@ class ApiService {
       throw Exception(error['error'] ?? 'Failed to update');
     }
   }
+
+  static dynamic _parseJsonSafe(String body) {
+    if (body.isEmpty) return null;
+    try {
+      return jsonDecode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Never _extractError(http.Response resp) {
+    final parsed = _parseJsonSafe(resp.body);
+    final msg = (parsed is Map && parsed['error'] != null)
+        ? parsed['error'].toString()
+        : 'Request failed with ${resp.statusCode}';
+    throw Exception(msg);
+  }
+  
+  static Future<dynamic> _requestExpect({
+    required Future<http.Response> future,
+    Set<int> ok = const {200},
+  }) async {
+    final resp = await future;
+    if (ok.contains(resp.statusCode)) {
+      final parsed = _parseJsonSafe(resp.body);
+      // Nếu body rỗng thì trả {} để tránh lỗi cast
+      return parsed ?? <String, dynamic>{};
+    }
+    _extractError(resp); // throws
+  }
+
+  static Future<Map<String, dynamic>> postExpectOk(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
+    final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    final resp = await _requestExpect(
+      future: http.post(url, headers: _headers, body: jsonEncode(data)),
+      ok: const {200, 201, 204},
+    );
+    // Nếu body rỗng -> trả {}
+    return Map<String, dynamic>.from(resp is Map ? resp : <String, dynamic>{});
+  }
 }

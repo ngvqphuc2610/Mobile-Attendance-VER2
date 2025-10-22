@@ -44,6 +44,12 @@ class ApiConstants {
   static const String classSections = '/class-sections';
   static const String attendanceSessions = '/attendance-sessions';
   static const String schedules = '/schedules';
+  // Session check-in tokens
+  static const String sessionCheckinTokens       = '/session-checkin-tokens';        // GET list
+  static const String sessionCheckinTokensOpen   = '/session-checkin-tokens/open';   // POST
+  static const String sessionCheckinTokensClose  = '/session-checkin-tokens/close';  // POST
+  static const String sessionCheckinTokensExtend = '/session-checkin-tokens/extend'; // POST
+
 
 
   static String _resolveBaseUrl() {

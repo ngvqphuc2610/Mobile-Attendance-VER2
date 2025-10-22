@@ -456,6 +456,20 @@ END $$
 
 DELIMITER ;
 
+CREATE TABLE session_checkin_tokens (
+  id          CHAR(36) NOT NULL DEFAULT (UUID()),
+  session_id  CHAR(36) NOT NULL,
+  pin_4       CHAR(4)  NOT NULL,
+  nonce       CHAR(16) NOT NULL,                 -- chống đoán
+  expires_at  DATETIME NOT NULL,
+  is_active   TINYINT(1) NOT NULL DEFAULT 1,     -- cho phép toggle đóng sớm
+  created_by  CHAR(36) NOT NULL,                 -- GV mở
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_sct_session (session_id),
+  CONSTRAINT sct_session_fk FOREIGN KEY (session_id)
+    REFERENCES session_instances(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 
 

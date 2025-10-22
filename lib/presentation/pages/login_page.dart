@@ -71,12 +71,40 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final accounts = await BiometricAuth.getAccounts();
+      final sanitized = <BiometricAccount>[];
+      final seenUserIds = <String>{};
+
+      for (final account in accounts) {
+        if (account.email.isEmpty || account.password.isEmpty) {
+          await BiometricAuth.deleteAccount(account.userId);
+          continue;
+        }
+
+        final enabled = await BiometricAuth.isEnabled(account.userId);
+        if (!enabled) {
+          await BiometricAuth.deleteAccount(account.userId);
+          continue;
+        }
+
+        if (seenUserIds.add(account.userId)) {
+          sanitized.add(account);
+        }
+      }
+
       if (!mounted) return;
+      final previousSelectedId = _selectedBiometricAccount?.userId;
       setState(() {
-        _biometricAccounts = accounts;
-        _selectedBiometricAccount = accounts.isNotEmpty ? accounts.first : null;
+        _biometricAccounts = List<BiometricAccount>.unmodifiable(sanitized);
+        _selectedBiometricAccount = _biometricAccounts.isEmpty
+            ? null
+            : _biometricAccounts.firstWhere(
+                (account) => account.userId == previousSelectedId,
+                orElse: () => _biometricAccounts.first,
+              );
         _biometricAvailable =
-            accounts.isNotEmpty && _selectedBiometricAccount != null;
+            canAuth &&
+            _biometricAccounts.isNotEmpty &&
+            _selectedBiometricAccount != null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -182,23 +210,35 @@ class _LoginPageState extends State<LoginPage> {
             );
           } else if (state is AuthAuthenticated) {
             try {
-              // Lưu/Xoá tài khoản sinh trắc học tuỳ theo checkbox "Ghi nhớ đăng nhập"
+              // ✅ LOGIC MỚI: Không can thiệp vào biometric đã được bật trong AccountPage
+              // Chỉ lưu/cập nhật nếu user CHỌN "Ghi nhớ đăng nhập"
+              
+              final userId = state.user.id;
+              final alreadyEnabled = await BiometricAuth.isEnabled(userId);
+              
               if (_rememberMe && (_lastLoginPassword?.isNotEmpty ?? false)) {
+                // User tick "Ghi nhớ" → Lưu/cập nhật thông tin
                 final account = BiometricAccount(
-                  userId: state.user.id,
+                  userId: userId,
                   email: state.user.email,
                   password: _lastLoginPassword!,
                   fullName: state.user.fullName,
                   role: state.user.role,
                 );
                 await BiometricAuth.saveAccount(account);
-              } else {
-                final enabled = await BiometricAuth.isEnabled(state.user.id);
-                if (enabled) await BiometricAuth.deleteAccount(state.user.id);
+              } else if (!_rememberMe && !alreadyEnabled) {
+                // User KHÔNG tick "Ghi nhớ" VÀ chưa bật biometric trong settings
+                // → Không làm gì cả (giữ nguyên trạng thái)
+                // ✅ QUAN TRỌNG: Không xóa nếu đã được bật trong AccountPage
               }
-            } catch (_) {
-              // bỏ qua lỗi secure storage
+              // Nếu alreadyEnabled = true và không tick "Ghi nhớ"
+              // → GIỮ NGUYÊN, không xóa
+              
+            } catch (e) {
+              debugPrint('Biometric save error: $e');
+              // Bỏ qua lỗi secure storage
             }
+            
             if (!mounted) return;
             context.go('/splash');
           }
@@ -300,9 +340,12 @@ class _LoginPageState extends State<LoginPage> {
             ),
             obscureText: _obscurePassword,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Vui lòng nhập mật khẩu';
-              if (value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
+              }
+              if (value.length < 6) {
+                return 'Mật khẩu phải có ít nhất 6 ký tự';
+              }
               return null;
             },
           ),
@@ -313,7 +356,12 @@ class _LoginPageState extends State<LoginPage> {
                 value: _rememberMe,
                 onChanged: (v) => setState(() => _rememberMe = v ?? false),
               ),
-              const Text('Ghi nhớ đăng nhập'),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  child: const Text('Ghi nhớ đăng nhập'),
+                ),
+              ),
             ],
           ),
         ],
@@ -333,91 +381,117 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildLoginButtons() {
     return BlocBuilder<AuthBloc, AuthState>(
-    builder: (context, state) {
-      final isLoading = state is AuthLoading;
-      final canUseBiometric =
-          _biometricAvailable && _selectedBiometricAccount != null;
+      builder: (context, state) {
+        final isLoading = state is AuthLoading;
+        final canUseBiometric =
+            _biometricAvailable && _selectedBiometricAccount != null;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Nút đăng nhập chính
-          SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed: isLoading ? null : _login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-                ),
-                elevation: 0,
-              ),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text(
-                      'Đăng nhập',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-            ),
-          ),
-
-          // Divider "hoặc"
-          if (_biometricAccounts.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const Expanded(child: Divider(thickness: 1)),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('hoặc', style: TextStyle(color: Colors.grey)),
-                ),
-                const Expanded(child: Divider(thickness: 1)),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Hàng nút vân tay + chip chọn tài khoản (nếu có nhiều)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                BiometricLoginButton(
-                  busy: _biometricBusy,
-                  onPressed: (!canUseBiometric || _biometricBusy)
-                      ? null
-                      : _handleBiometricLogin,
-                  tooltip: canUseBiometric
-                      ? 'Đăng nhập bằng vân tay'
-                      : 'Không khả dụng',
-                  size: 56,
-                ),
-                if (_biometricAccounts.length > 1) ...[
-                  const SizedBox(width: 12),
-                  ActionChip(
-                    avatar: const Icon(Icons.expand_more, size: 18),
-                    label: Text(
-                      _selectedBiometricAccount?.fullName.isNotEmpty == true
-                          ? _selectedBiometricAccount!.fullName
-                          : (_selectedBiometricAccount?.email ?? 'Chọn tài khoản'),
-                    ),
-                    onPressed: _showBiometricAccountPicker,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Nút đăng nhập chính
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : _login,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                   ),
-                ],
-              ],
+                  elevation: 0,
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        'Đăng nhập',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
             ),
+
+            // Divider "hoặc"
+            if (_biometricAccounts.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  const Expanded(child: Divider(thickness: 1)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'hoặc',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider(thickness: 1)),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Hàng nút vân tay + chip chọn tài khoản (nếu có nhiều)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  BiometricLoginButton(
+                    busy: _biometricBusy,
+                    onPressed: (!canUseBiometric || _biometricBusy)
+                        ? null
+                        : _handleBiometricLogin,
+                    tooltip: canUseBiometric
+                        ? 'Đăng nhập bằng vân tay'
+                        : 'Không khả dụng',
+                    size: 56,
+                  ),
+                  if (_biometricAccounts.length > 1) ...[
+                    const SizedBox(width: 12),
+                    ActionChip(
+                      avatar: const Icon(Icons.expand_more, size: 18),
+                      label: Text(
+                        _selectedBiometricAccount?.fullName.isNotEmpty == true
+                            ? _selectedBiometricAccount!.fullName
+                            : (_selectedBiometricAccount?.email ??
+                                  'Chọn tài khoản'),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onPressed: _showBiometricAccountPicker,
+                    ),
+                  ],
+                ],
+              ),
+              
+              // Hint text
+              if (canUseBiometric) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Chạm vào biểu tượng vân tay để đăng nhập nhanh',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
           ],
-        ],
-      );
-    },
-  );
+        );
+      },
+    );
   }
 
   void _showForgotPasswordDialog() {

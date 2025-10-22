@@ -74,3 +74,11 @@ class DeleteAttendance extends AttendanceEvent {
   @override
   List<Object> get props => [attendanceId];
 }
+class LoadAttendancesBySession extends AttendanceEvent {
+  final String sessionId;
+
+  const LoadAttendancesBySession(this.sessionId);
+
+  @override
+  List<Object> get props => [sessionId];
+}
