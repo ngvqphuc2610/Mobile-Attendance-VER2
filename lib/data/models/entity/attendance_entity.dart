@@ -13,6 +13,10 @@ class AttendanceEntity extends Equatable {
   final String? note;
   final String? sectionId;
   final String? sessionId;
+  final double? latitude;
+  final double? longitude;
+  final double? accuracyMeters;
+  final String? address;
 
 
   const AttendanceEntity({
@@ -26,6 +30,10 @@ class AttendanceEntity extends Equatable {
     this.note,
     this.sectionId,
     this.sessionId,
+    this.latitude,
+    this.longitude,
+    this.accuracyMeters,
+    this.address,
   });
 
   factory AttendanceEntity.fromJson(Map<String, dynamic> json) {
@@ -42,6 +50,10 @@ class AttendanceEntity extends Equatable {
       note: json['note']?.toString(),
       sectionId: json['section_id']?.toString(),
       sessionId: json['session_id']?.toString(),
+      latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
+      longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
+      accuracyMeters: json['accuracy_m'] != null ? (json['accuracy_m'] as num).toDouble() : null,
+      address: json['address']?.toString(),
     );
   }
 
@@ -70,6 +82,10 @@ class AttendanceEntity extends Equatable {
       'note': note,
       'section_id': sectionId,
       'session_id': sessionId,
+      'latitude': latitude,
+      'longitude': longitude,
+      'accuracy_m': accuracyMeters,
+      'address': address,
     };
   }
 
@@ -85,5 +101,9 @@ class AttendanceEntity extends Equatable {
         note,
         sectionId,
         sessionId,
+        latitude,
+        longitude,
+        accuracyMeters,
+        address,
       ];
 }

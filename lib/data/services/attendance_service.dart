@@ -10,6 +10,7 @@ class AttendanceService {
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
+
   }) async {
     final queryParams = <String, String>{};
 
@@ -35,15 +36,25 @@ class AttendanceService {
     String? note,
     String? sectionId,
     String? sessionId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? address,
   }) async {
     final response = await ApiService.create(ApiConstants.attendance, {
+      
       'user_id': userId,
       'method': method.name,
       if (confidenceScore != null) 'confidence_score': confidenceScore,
       if (note != null) 'note': note,
       if (sectionId != null) 'section_id': sectionId,
       if (sessionId != null) 'session_id': sessionId,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (accuracyMeters != null) 'accuracy_m': accuracyMeters,
+      if (address != null) 'address': address,
     });
+
     return AttendanceEntity.fromJson(response);
   }
 

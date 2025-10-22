@@ -11,6 +11,11 @@ import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_bloc.d
 import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_event.dart';
 import 'package:mobile_attendance/presentation/bloc/enrollment/enrollment_state.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart'; // để kiểm tra/bật Location Service
+import 'package:geocoding/geocoding.dart'; // để reverse geocoding
+import '../../../core/helpers/location_helper.dart';
+
 class SessionStudentsPanel extends StatefulWidget {
   const SessionStudentsPanel({
     super.key,
@@ -67,7 +72,38 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
 
   void _dispatchLoads(String sectionId) {
     context.read<EnrollmentBloc>().add(LoadEnrollmentsBySection(sectionId));
-    context.read<AttendanceBloc>().add(LoadAttendances(sectionId: sectionId, sessionId: widget.sessionId));
+    context.read<AttendanceBloc>().add(
+      LoadAttendances(sectionId: sectionId, sessionId: widget.sessionId),
+    );
+  }
+
+  //xin quyền truy cập vị trí
+  Future<bool> _ensureLocationPermission() async {
+    // 1) Kiểm tra Location Service đã bật chưa
+    var serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // mở màn hình cài đặt vị trí
+      await Geolocator.openLocationSettings();
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return false;
+    }
+
+    // 2) Xin quyền qua permission_handler
+    var status = await Permission.locationWhenInUse.status;
+
+    if (status.isDenied) {
+      status = await Permission.locationWhenInUse
+          .request(); // <-- popup hệ thống hiện ở đây
+    }
+
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      // người dùng chặn vĩnh viễn → mở App Settings
+      await openAppSettings();
+      return false;
+    }
+
+    // granted hoặc limited (iOS) đều OK
+    return status.isGranted || status.isLimited;
   }
 
   @override
@@ -97,13 +133,13 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
       listener: (context, state) {
         if (!mounted) return;
         if (state is AttendanceOperationSuccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
         } else if (state is AttendanceError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: ${state.message}')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Lỗi: ${state.message}')));
         }
       },
       child: BlocBuilder<EnrollmentBloc, EnrollmentState>(
@@ -122,8 +158,12 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
                 );
               }
 
-              final enrollmentError = enrollmentState is EnrollmentError ? enrollmentState.message : null;
-              final attendanceError = attendanceState is AttendanceError ? attendanceState.message : null;
+              final enrollmentError = enrollmentState is EnrollmentError
+                  ? enrollmentState.message
+                  : null;
+              final attendanceError = attendanceState is AttendanceError
+                  ? attendanceState.message
+                  : null;
               final errorMessage = enrollmentError ?? attendanceError;
               if (errorMessage != null) {
                 return Center(
@@ -157,28 +197,32 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
                   ? attendances.map((a) => a['user_id']?.toString()).toSet()
                   : presentMap.keys.toSet();
 
-              final items = enrollments.map<Map<String, dynamic>>((row) {
-                final id = row['student_id']?.toString() ??
-                    row['profile_id']?.toString() ??
-                    row['id']?.toString();
+              final items =
+                  enrollments.map<Map<String, dynamic>>((row) {
+                    final id =
+                        row['student_id']?.toString() ??
+                        row['profile_id']?.toString() ??
+                        row['id']?.toString();
 
-                final isPresent = attendedIds.contains(id);
-                final attId = isPresent ? presentMap[id]?.id : null;
+                    final isPresent = attendedIds.contains(id);
+                    final attId = isPresent ? presentMap[id]?.id : null;
 
-                return {
-                  'student_id': id,
-                  'code': row['code'] ?? row['mssv'] ?? '',
-                  'full_name': row['full_name'] ?? '',
-                  'present': isPresent,
-                  'attendance_id': attId,
-                };
-              }).toList()
-                ..sort((a, b) {
-                  final aPresent = a['present'] == true ? 1 : 0;
-                  final bPresent = b['present'] == true ? 1 : 0;
-                  if (aPresent != bPresent) return bPresent.compareTo(aPresent);
-                  return (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString());
-                });
+                    return {
+                      'student_id': id,
+                      'code': row['code'] ?? row['mssv'] ?? '',
+                      'full_name': row['full_name'] ?? '',
+                      'present': isPresent,
+                      'attendance_id': attId,
+                    };
+                  }).toList()..sort((a, b) {
+                    final aPresent = a['present'] == true ? 1 : 0;
+                    final bPresent = b['present'] == true ? 1 : 0;
+                    if (aPresent != bPresent)
+                      return bPresent.compareTo(aPresent);
+                    return (a['code'] ?? '').toString().compareTo(
+                      (b['code'] ?? '').toString(),
+                    );
+                  });
 
               if (items.isEmpty) {
                 return const Center(
@@ -201,14 +245,19 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
                       ? Colors.green.withOpacity(0.1)
                       : Colors.orange.withOpacity(0.1);
 
-                  final textColor = present ? Colors.green[800] : Colors.orange[800];
+                  final textColor = present
+                      ? Colors.green[800]
+                      : Colors.orange[800];
 
                   return Container(
                     decoration: BoxDecoration(
                       color: bgColor,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 4,
+                    ),
                     child: ListTile(
                       title: Text(
                         student['full_name'] ?? '',
@@ -230,48 +279,93 @@ class _SessionStudentsPanelState extends State<SessionStudentsPanel> {
                           ElevatedButton.icon(
                             onPressed: present
                                 ? null
-                                : () {
-                                    final userId = student['student_id']?.toString();
-                                    if (userId != null && _sectionId != null) {
+                                : () async {
+                                    final userId = student['student_id']
+                                        ?.toString();
+                                    if (userId == null || _sectionId == null)
+                                      return;
+
+                                    // B1: xin quyền + yêu cầu bật dịch vụ vị trí (popup sẽ hiện ở đây)
+                                    final ok =
+                                        await _ensureLocationPermission();
+                                    if (!ok) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Vui lòng bật GPS và cấp quyền vị trí để điểm danh.',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    try {
+                                      final loc =
+                                          await LocationHelper.getCurrentLocation();
                                       context.read<AttendanceBloc>().add(
-                                            CreateAttendance(
-                                              userId: userId,
-                                              method: AttendanceMethod.manual, // chọn "manual"
-                                              sectionId: _sectionId!,
-                                              sessionId: widget.sessionId,
-                                            ),
-                                          );
+                                        CreateAttendance(
+                                          userId: userId,
+                                          method: AttendanceMethod.manual,
+                                          sectionId: _sectionId!,
+                                          sessionId: widget.sessionId,
+                                          latitude: loc.latitude,
+                                          longitude: loc.longitude,
+                                          accuracyMeters: loc.accuracyMeters,
+                                          address: loc.address,
+                                          // nếu bạn đã thêm cờ này ở Event
+                                        ),
+                                      );
+                                    } catch (_) {
+                                      // Không lấy được vị trí/địa chỉ sau khi đã có quyền -> báo lỗi
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Không lấy được vị trí hiện tại. Thử lại sau.',
+                                          ),
+                                        ),
+                                      );
                                     }
                                   },
                             icon: const Icon(Icons.check_circle),
                             label: const Text('Có mặt'),
                             style: ElevatedButton.styleFrom(
                               minimumSize: const Size(90, 36),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
                             ),
                           ),
-
                           // Nút "Vắng" — chỉ enable khi đang present (đã có attendance_id)
                           OutlinedButton.icon(
                             onPressed: !present
                                 ? null
                                 : () {
-                                    final attId = student['attendance_id']?.toString();
+                                    final attId = student['attendance_id']
+                                        ?.toString();
                                     if (attId != null && _sectionId != null) {
                                       context.read<AttendanceBloc>().add(
-                                            DeleteAttendance(
-                                              attendanceId: attId,
-                                              sectionId: _sectionId!,
-                                              sessionId: widget.sessionId,
-                                            ),
-                                          );
+                                        DeleteAttendance(
+                                          attendanceId: attId,
+                                          sectionId: _sectionId!,
+                                          sessionId: widget.sessionId,
+                                        ),
+                                      );
                                     }
                                   },
                             icon: const Icon(Icons.remove_circle_outline),
                             label: const Text('Vắng'),
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size(80, 36),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
                               side: BorderSide(color: Colors.red.shade300),
                               foregroundColor: Colors.red.shade700,
                             ),
