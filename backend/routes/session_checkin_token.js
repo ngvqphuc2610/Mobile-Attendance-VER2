@@ -26,7 +26,7 @@ router.get('/', authenticateToken, requireRole('teacher','admin'), async (req, r
       JOIN session_instances si ON si.id = sct.session_id
       JOIN teaching_assignments ta ON ta.section_id = si.section_id
       WHERE ta.teacher_id = ?`;
-    params.push(req.user.profile_id);
+    params.push(req.user.id);
 
     if (session_id) { sql += ' AND sct.session_id = ?'; params.push(session_id); }
     sql += ' ORDER BY sct.created_at DESC';
@@ -55,7 +55,7 @@ router.post('/open', authenticateToken, requireRole('teacher','admin'), async (r
        FROM session_instances si
        JOIN teaching_assignments ta ON ta.section_id = si.section_id
        WHERE si.id = ? AND ta.teacher_id = ?`,
-      [session_id, req.user.profile_id]
+      [session_id, req.user.id]
     );
     if (chk.length === 0) return res.status(403).json({ error: 'Forbidden: not your session' });
 
@@ -76,7 +76,7 @@ router.post('/open', authenticateToken, requireRole('teacher','admin'), async (r
       `INSERT INTO session_checkin_tokens
          (id, session_id, pin_4, nonce, expires_at, is_active, created_by)
        VALUES (UUID(), ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), 1, ?)`,
-      [session_id, pin4, nonce, duration_seconds, req.user.profile_id]
+      [session_id, pin4, nonce, duration_seconds, req.user.id]
     );
 
     // trả lại token vừa tạo
@@ -112,7 +112,7 @@ router.post('/close', authenticateToken, requireRole('teacher','admin'), async (
        FROM session_instances si
        JOIN teaching_assignments ta ON ta.section_id = si.section_id
        WHERE si.id = ? AND ta.teacher_id = ?`,
-      [session_id, req.user.profile_id]
+      [session_id, req.user.id]
     );
     if (chk.length === 0) return res.status(403).json({ error: 'Forbidden: not your session' });
 
@@ -141,7 +141,7 @@ router.post('/extend', authenticateToken, requireRole('teacher','admin'), async 
        FROM session_instances si
        JOIN teaching_assignments ta ON ta.section_id = si.section_id
        WHERE si.id = ? AND ta.teacher_id = ?`,
-      [session_id, req.user.profile_id]
+      [session_id, req.user.id]
     );
     if (chk.length === 0) return res.status(403).json({ error: 'Forbidden' });
 

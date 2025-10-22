@@ -36,7 +36,7 @@ class _AdminAttendanceListState extends State<AdminAttendanceList> {
   }
 
   void _deleteAttendance(AttendanceEntity a) {
-    context.read<AttendanceBloc>().add(DeleteAttendance(a.id));
+    context.read<AttendanceBloc>().add(DeleteAttendance(attendanceId: a.id!));
   }
 
   Future<void> _openEdit(AttendanceEntity a) async {

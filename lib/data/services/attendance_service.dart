@@ -6,6 +6,7 @@ class AttendanceService {
   static Future<List<AttendanceEntity>> getAttendances({
     String? userId,
     String? sectionId,
+    String? sessionId,
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
@@ -14,6 +15,7 @@ class AttendanceService {
 
     if (userId != null) queryParams['user_id'] = userId;
     if (sectionId != null) queryParams['section_id'] = sectionId;
+    if (sessionId != null) queryParams['session_id'] = sessionId;
     if (fromDate != null) queryParams['from_date'] = fromDate.toIso8601String();
     if (toDate != null) queryParams['to_date'] = toDate.toIso8601String();
     if (method != null) queryParams['method'] = method.name;

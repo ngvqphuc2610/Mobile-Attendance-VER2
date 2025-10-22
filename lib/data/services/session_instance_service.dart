@@ -69,6 +69,7 @@ class SessionInstanceService {
   static Future<Map<String, dynamic>> deleteSessionInstance(String id) {
     return ApiService.delete(ApiConstants.sessionInstances, id);
   }
+
   static Future<Map<String, dynamic>> fetchSessionInstanceById(String id) {
     return ApiService.getById(ApiConstants.sessionInstances, id);
   }

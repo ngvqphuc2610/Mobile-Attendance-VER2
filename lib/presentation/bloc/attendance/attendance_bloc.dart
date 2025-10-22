@@ -7,15 +7,14 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   final AttendanceRepository _repository;
 
   AttendanceBloc({required AttendanceRepository repository})
-    : _repository = repository,
-      super(AttendanceInitial()) {
+      : _repository = repository,
+        super(AttendanceInitial()) {
     on<LoadAttendances>(_onLoadAttendances);
     on<CreateAttendance>(_onCreateAttendance);
     on<LoadAttendanceStats>(_onLoadAttendanceStats);
     on<FilterAttendances>(_onFilterAttendances);
     on<DeleteAttendance>(_onDeleteAttendance);
     on<LoadAttendancesBySession>(_onLoadAttendancesBySession);
-    
   }
 
   Future<void> _onLoadAttendances(
@@ -23,16 +22,15 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     Emitter<AttendanceState> emit,
   ) async {
     emit(AttendanceLoading());
-
     try {
       final attendances = await _repository.getAttendances(
         userId: event.userId,
         sectionId: event.sectionId,
+        sessionId: event.sessionId,
         fromDate: event.fromDate,
         toDate: event.toDate,
         method: event.method,
       );
-
       emit(
         AttendancesLoaded(
           attendances: attendances,
@@ -59,7 +57,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       );
 
       emit(const AttendanceOperationSuccess('Điểm danh thành công'));
-      add(const LoadAttendances());
+      add(LoadAttendances(sectionId: event.sectionId, sessionId: event.sessionId));
     } catch (e) {
       emit(AttendanceError(e.toString()));
     }
@@ -70,13 +68,11 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     Emitter<AttendanceState> emit,
   ) async {
     emit(AttendanceLoading());
-
     try {
       final stats = await _repository.getAttendanceStats(
         fromDate: event.fromDate,
         toDate: event.toDate,
       );
-
       emit(AttendanceStatsLoaded(stats));
     } catch (e) {
       emit(AttendanceError(e.toString()));
@@ -90,21 +86,16 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     final currentState = state;
     if (currentState is AttendancesLoaded) {
       if (event.query.trim().isEmpty) {
-        emit(
-          currentState.copyWith(filteredAttendances: currentState.attendances),
-        );
+        emit(currentState.copyWith(filteredAttendances: currentState.attendances));
         return;
       }
-
       final query = event.query.toLowerCase();
       final filtered = currentState.attendances.where((attendance) {
-        return (attendance.userFullName?.toLowerCase().contains(query) ==
-                true) ||
+        return (attendance.userFullName?.toLowerCase().contains(query) == true) ||
             (attendance.userCode?.toLowerCase().contains(query) == true) ||
             (attendance.method.name.toLowerCase().contains(query)) ||
             (attendance.note?.toLowerCase().contains(query) == true);
       }).toList();
-
       emit(currentState.copyWith(filteredAttendances: filtered));
     }
   }
@@ -114,24 +105,26 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     Emitter<AttendanceState> emit,
   ) async {
     try {
+      // ❌ BỎ GỌI TRÙNG LẶP
       await _repository.deleteAttendance(event.attendanceId);
+
       emit(const AttendanceOperationSuccess('Xóa điểm danh thành công'));
-      add(const LoadAttendances());
+      add(LoadAttendances(sectionId: event.sectionId, sessionId: event.sessionId));
     } catch (e) {
       emit(AttendanceError(e.toString()));
     }
   }
+
   Future<void> _onLoadAttendancesBySession(
     LoadAttendancesBySession event,
     Emitter<AttendanceState> emit,
   ) async {
     emit(AttendanceLoading());
-
     try {
+      // ✅ SỬA NHẦM: phải truyền sessionId
       final attendances = await _repository.getAttendances(
-        sectionId: event.sessionId,
+        sessionId: event.sessionId,
       );
-
       emit(
         AttendancesLoaded(
           attendances: attendances,
