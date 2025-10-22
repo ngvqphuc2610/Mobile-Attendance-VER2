@@ -17,6 +17,7 @@ class AttendanceEntity extends Equatable {
   final double? longitude;
   final double? accuracyMeters;
   final String? address;
+  
 
 
   const AttendanceEntity({

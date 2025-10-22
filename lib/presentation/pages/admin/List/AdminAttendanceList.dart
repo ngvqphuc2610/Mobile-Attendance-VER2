@@ -149,6 +149,8 @@ class _AdminAttendanceListState extends State<AdminAttendanceList> {
                           final method = a.method.name; // enum -> .name
                           final note = a.note;
                           final timeStr = a.atTime.toLocal().toString();
+                          final time = timeStr.isNotEmpty ? timeStr.substring(0, 16) : '';
+                          final address = a.address;
 
                           return Dismissible(
                             key: ValueKey(a.id),

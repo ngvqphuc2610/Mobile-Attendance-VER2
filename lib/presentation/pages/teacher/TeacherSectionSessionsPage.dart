@@ -3,6 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:mobile_attendance/core/constants/app_theme.dart';
 import 'package:mobile_attendance/core/di/dependency_injection.dart';
+import 'package:mobile_attendance/presentation/bloc/auth/auth_bloc.dart';
+import 'package:mobile_attendance/presentation/bloc/attendance/attendance_bloc.dart';
+import 'package:mobile_attendance/presentation/bloc/attendance/attendance_event.dart';
+import 'package:mobile_attendance/presentation/bloc/attendance/attendance_state.dart';
 import 'package:mobile_attendance/presentation/bloc/session_instance/session_instance_bloc.dart';
 import 'package:mobile_attendance/presentation/bloc/session_instance/session_instance_event.dart';
 import 'package:mobile_attendance/presentation/bloc/session_instance/session_instance_state.dart';
@@ -28,6 +32,7 @@ class _TeacherSectionSessionsPageState
     extends State<TeacherSectionSessionsPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
+  bool _initialAttendanceRequested = false;
 
   @override
   void dispose() {
@@ -39,6 +44,12 @@ class _TeacherSectionSessionsPageState
     context.read<SessionInstanceBloc>().add(
       LoadSessionInstances(sectionId: widget.sectionId),
     );
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      context.read<AttendanceBloc>().add(
+        LoadAttendances(sectionId: widget.sectionId, userId: authState.user.id),
+      );
+    }
   }
 
   @override
@@ -47,120 +58,226 @@ class _TeacherSectionSessionsPageState
         ? 'Sessions'
         : 'Sessions • ${widget.sectionCode}';
 
-    return BlocProvider<SessionInstanceBloc>(
-      create: (_) =>
-          sl<SessionInstanceBloc>()
-            ..add(LoadSessionInstances(sectionId: widget.sectionId)),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(title),
-          backgroundColor: AppTheme.adminPrimaryColor,
-          actions: [
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: () => _reload(context),
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
+    final teacherProfileId = context.select<AuthBloc, String?>((bloc) {
+      final authState = bloc.state;
+      if (authState is AuthAuthenticated) {
+        return authState.user.id;
+      }
+      return null;
+    });
+
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<SessionInstanceBloc>(
+          create: (_) =>
+              sl<SessionInstanceBloc>()
+                ..add(LoadSessionInstances(sectionId: widget.sectionId)),
         ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: (value) => setState(() => _query = value.trim()),
-                decoration: InputDecoration(
-                  hintText: 'Search by room, status or time',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchCtrl.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            setState(() => _query = '');
-                          },
-                          icon: const Icon(Icons.clear),
-                        ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  isDense: true,
+        BlocProvider<AttendanceBloc>(
+          create: (_) {
+            final bloc = sl<AttendanceBloc>();
+            if (teacherProfileId != null) {
+              bloc.add(
+                LoadAttendances(
+                  sectionId: widget.sectionId,
+                  userId: teacherProfileId,
                 ),
-              ),
-            ),
-            Expanded(
-              child: BlocBuilder<SessionInstanceBloc, SessionInstanceState>(
-                builder: (context, state) {
-                  if (state is SessionInstanceLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (state is SessionInstanceError) {
-                    return _ErrorView(
-                      message: state.message,
-                      onRetry: () => _reload(context),
-                    );
-                  }
-
-                  if (state is SessionInstancesLoaded) {
-                    final rows = state.instances
-                        .map(_SessionParser.fromMap)
-                        .whereType<SessionRowData>()
-                        .toList();
-
-                    final filtered = _filter(rows, _query);
-                    if (filtered.isEmpty) {
-                      return const _EmptyView();
-                    }
-
-                    return RefreshIndicator(
-                      onRefresh: () async => _reload(context),
-                      child: ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final row = filtered[index];
-                          return ListTile(
-                            leading: _StatusAvatar(status: row.status),
-                            title: Text(
-                              row.displayDate,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(row.timeAndRoom),
-                            trailing: _StatusChip(status: row.status),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => TeacherSessionDetailPage(
-                                    sessionId: row.sessionId,
-                                    sectionId: widget.sectionId,
-                                    sectionCode:
-                                        widget.sectionCode ?? row.sectionCode,
-                                    subjectName: row.subjectName,
-                                    roomName: row.roomName,
-                                    startsAt: row.startsAt,
-                                    endsAt: row.endsAt,
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  }
-
-                  return const SizedBox.shrink();
-                },
-              ),
-            ),
-          ],
+              );
+              _initialAttendanceRequested = true;
+            }
+            return bloc;
+          },
         ),
+      ],
+      child: Builder(
+        builder: (context) {
+          if (teacherProfileId == null) {
+            _initialAttendanceRequested = false;
+          }
+
+          if (teacherProfileId != null && !_initialAttendanceRequested) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || _initialAttendanceRequested) return;
+              context.read<AttendanceBloc>().add(
+                LoadAttendances(
+                  sectionId: widget.sectionId,
+                  userId: teacherProfileId,
+                ),
+              );
+              _initialAttendanceRequested = true;
+            });
+          }
+
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(title),
+              backgroundColor: AppTheme.adminPrimaryColor,
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: () => _reload(context),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (value) => setState(() => _query = value.trim()),
+                    decoration: InputDecoration(
+                      hintText: 'Search by room, status or time',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchCtrl.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _query = '');
+                              },
+                              icon: const Icon(Icons.clear),
+                            ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: BlocBuilder<SessionInstanceBloc, SessionInstanceState>(
+                    builder: (context, state) {
+                      if (state is SessionInstanceLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (state is SessionInstanceError) {
+                        return _ErrorView(
+                          message: state.message,
+                          onRetry: () => _reload(context),
+                        );
+                      }
+
+                      if (state is SessionInstancesLoaded) {
+                        final rows = state.instances
+                            .map(_SessionParser.fromMap)
+                            .whereType<SessionRowData>()
+                            .toList();
+
+                        final filtered = _filter(rows, _query);
+                        if (filtered.isEmpty) {
+                          return const _EmptyView();
+                        }
+
+                        return BlocBuilder<AttendanceBloc, AttendanceState>(
+                          builder: (context, attendanceState) {
+                            final attendedSessionIds = <String>{};
+                            if (attendanceState is AttendancesLoaded) {
+                              for (final attendance
+                                  in attendanceState.attendances) {
+                                final sessionId = attendance.sessionId;
+                                if (sessionId != null && sessionId.isNotEmpty) {
+                                  attendedSessionIds.add(sessionId);
+                                }
+                              }
+                            }
+
+                            final isAttendanceLoading =
+                                attendanceState is AttendanceLoading;
+                            final bool hasTeacher = teacherProfileId != null;
+
+                            return RefreshIndicator(
+                              onRefresh: () async {
+                                _reload(context);
+                                await Future<void>.delayed(
+                                  const Duration(milliseconds: 300),
+                                );
+                              },
+                              child: ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 4),
+                                itemBuilder: (itemContext, index) {
+                                  final row = filtered[index];
+                                  final bool checkedIn = attendedSessionIds
+                                      .contains(row.sessionId);
+                                  final Color borderColor;
+
+                                  if (!hasTeacher) {
+                                    borderColor = Colors.grey.shade400;
+                                  } else if (isAttendanceLoading) {
+                                    borderColor = Colors.grey.shade400;
+                                  } else {
+                                    borderColor = checkedIn
+                                        ? Colors.green
+                                        : Colors.red;
+                                  }
+
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: borderColor,
+                                        width: 2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ListTile(
+                                      leading: _StatusAvatar(
+                                        status: row.status,
+                                      ),
+                                      title: Text(
+                                        row.displayDate,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      subtitle: Text(row.timeAndRoom),
+                                      trailing: _StatusChip(status: row.status),
+                                      onTap: () async {
+                                        await Navigator.push(
+                                          itemContext,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                TeacherSessionDetailPage(
+                                                  sessionId: row.sessionId,
+                                                  sectionId: widget.sectionId,
+                                                  sectionCode:
+                                                      widget.sectionCode ??
+                                                      row.sectionCode,
+                                                  subjectName: row.subjectName,
+                                                  roomName: row.roomName,
+                                                  startsAt: row.startsAt,
+                                                  endsAt: row.endsAt,
+                                                ),
+                                          ),
+                                        );
+                                        if (!itemContext.mounted) return;
+                                        _reload(itemContext);
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      }
+
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
