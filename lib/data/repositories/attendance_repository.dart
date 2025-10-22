@@ -9,6 +9,7 @@ abstract class AttendanceRepository {
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
+    String? address,
 
   });
   
@@ -41,6 +42,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
+    String? address,
   }) async {
     try {
       return await AttendanceService.getAttendances(
@@ -50,6 +52,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         fromDate: fromDate,
         toDate: toDate,
         method: method,
+        address: address,
       );
     } catch (e) {
       throw Exception('Failed to fetch attendances: $e');

@@ -15,6 +15,7 @@ class LoadAttendances extends AttendanceEvent {
   final DateTime? fromDate;
   final DateTime? toDate;
   final AttendanceMethod? method;
+  final String ?address;
 
   const LoadAttendances({
     this.userId,
@@ -23,10 +24,12 @@ class LoadAttendances extends AttendanceEvent {
     this.fromDate,
     this.toDate,
     this.method,
+    this.address,
+
   });
 
   @override
-  List<Object?> get props => [userId, sectionId, sessionId, fromDate, toDate, method];
+  List<Object?> get props => [userId, sectionId, sessionId, fromDate, toDate, method, address];
 }
 
 class CreateAttendance extends AttendanceEvent {
@@ -102,3 +105,33 @@ class LoadAttendancesBySession extends AttendanceEvent {
   @override
   List<Object> get props => [sessionId];
 }
+
+class ApplyAttendanceFilters extends AttendanceEvent {
+  final String? teacherId;
+  final String? studentId;
+  final String? text; // optional: combine với ô search hiện có
+  final String? sectionId;
+  final String? sessionId;
+  final DateTime? fromDate;
+  final DateTime? toDate;
+  final AttendanceMethod? method;
+  final String? address;
+
+  const ApplyAttendanceFilters({
+    this.teacherId,
+    this.studentId,
+    this.text,
+    this.sectionId,
+    this.sessionId,
+    this.fromDate,
+    this.toDate,
+    this.method,
+    this.address,
+  });
+
+  @override
+  List<Object?> get props => [
+    teacherId, studentId, text, sectionId, sessionId, fromDate, toDate, method, address
+  ];
+}
+

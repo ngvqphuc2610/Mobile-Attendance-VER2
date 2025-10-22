@@ -10,6 +10,7 @@ class AttendanceService {
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
+    String? address,
 
   }) async {
     final queryParams = <String, String>{};
