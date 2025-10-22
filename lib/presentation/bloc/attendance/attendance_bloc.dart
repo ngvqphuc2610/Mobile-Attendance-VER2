@@ -2,7 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/repositories/attendance_repository.dart';
 import 'attendance_event.dart';
 import 'attendance_state.dart';
-
+import '../../../core/helpers/location_helper.dart';
 class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   final AttendanceRepository _repository;
 
@@ -54,6 +54,10 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         note: event.note,
         sectionId: event.sectionId,
         sessionId: event.sessionId,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        accuracyMeters: event.accuracyMeters,
+        address: event.address,
       );
 
       emit(const AttendanceOperationSuccess('Điểm danh thành công'));

@@ -9,6 +9,7 @@ abstract class AttendanceRepository {
     DateTime? fromDate,
     DateTime? toDate,
     AttendanceMethod? method,
+
   });
   
   Future<AttendanceEntity> createAttendance({
@@ -18,6 +19,10 @@ abstract class AttendanceRepository {
     String? note,
     String? sectionId,
     String? sessionId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? address,
   });
   Future<void> deleteAttendance(String id);
   
@@ -59,6 +64,10 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     String? note,
     String? sectionId,
     String? sessionId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? address,
   }) async {
     try {
       return await AttendanceService.createAttendance(
@@ -68,6 +77,11 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         note: note,
         sectionId: sectionId,
         sessionId: sessionId,
+        latitude: latitude,
+        longitude: longitude,
+        accuracyMeters: accuracyMeters,
+        address: address,
+
       );
     } catch (e) {
       throw Exception('Failed to create attendance: $e');

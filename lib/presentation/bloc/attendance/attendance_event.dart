@@ -36,6 +36,10 @@ class CreateAttendance extends AttendanceEvent {
   final String? note;
   final String sectionId;
   final String? sessionId;
+  final double? latitude;
+  final double? longitude;
+  final double? accuracyMeters;
+  final String? address;
 
   const CreateAttendance({
     required this.userId,
@@ -44,10 +48,14 @@ class CreateAttendance extends AttendanceEvent {
     this.note,
     required this.sectionId,
     this.sessionId,
+    this.latitude,
+    this.longitude,
+    this.accuracyMeters,
+    this.address,
   });
 
   @override
-  List<Object?> get props => [userId, method, confidenceScore, note, sectionId, sessionId];
+  List<Object?> get props => [userId, method, confidenceScore, note, sectionId, sessionId, latitude, longitude, accuracyMeters, address];
 }
 
 class LoadAttendanceStats extends AttendanceEvent {
