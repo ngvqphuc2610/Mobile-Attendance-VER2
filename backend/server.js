@@ -21,6 +21,7 @@ const sectionScheduleRoutes = require('./routes/section_schedules');
 const sessionInstanceRoutes = require('./routes/session_instances');
 const teachingAssignmentRoutes = require('./routes/teaching_assignments');
 const sessionCheckinTokenRoutes = require('./routes/session_checkin_token.js');
+const checkinRoutes = require('./routes/checkin.js');
 
 const socketHandler = require('./sockets/socket');
 const swaggerUi = require('swagger-ui-express');
@@ -84,6 +85,7 @@ app.use('/api/section-schedules', sectionScheduleRoutes);
 app.use('/api/session-instances', sessionInstanceRoutes);
 app.use('/api/teaching-assignments', teachingAssignmentRoutes);
 app.use('/api/session-checkin-tokens', sessionCheckinTokenRoutes);
+app.use('/api/checkin', checkinRoutes);
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -106,6 +108,19 @@ app.use((err, req, res, next) => {
 // 404
 app.use('*', (_req, res) => res.status(404).json({ error: 'Route not found' }));
 
+//  Job định kỳ: đóng token hết hạn 30s
+setInterval(async () => {
+  try {
+    await db.execute(`
+      UPDATE session_checkin_tokens
+      SET is_active = 0
+      WHERE is_active = 1
+        AND expires_at <= NOW()
+    `);
+  } catch (e) {
+    console.error('expireTokens job error:', e);
+  }
+}, 30 * 1000);
 // Socket handler
 socketHandler(io);
 

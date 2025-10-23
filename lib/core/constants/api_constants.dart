@@ -48,7 +48,11 @@ class ApiConstants {
   static const String sessionCheckinTokens       = '/session-checkin-tokens';        // GET list
   static const String sessionCheckinTokensOpen   = '/session-checkin-tokens/open';   // POST
   static const String sessionCheckinTokensClose  = '/session-checkin-tokens/close';  // POST
-  static const String sessionCheckinTokensExtend = '/session-checkin-tokens/extend'; // POST
+  static const String sessionCheckinTokensExtend = '/session-checkin-tokens/extend';
+
+  static const String checkinPin = '/checkin/pin';
+  static const String checkinQr = '/checkin/qr';
+   // POST
   // Student schedules
   static const String studentSchedules = '/student-schedules';
 
