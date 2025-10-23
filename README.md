@@ -52,12 +52,15 @@ DB_PASSWORD=
 DB_NAME=
 
 API_URL=
+JWT_SECRET=
+ESMS_API_KEY=
+ESMS_SECRET_KEY=
    ```
 
 3. **Chạy ứng dụng:**
    ``
-   *** chạy backend
-   npm run dev
+   *** chạy backend + NGROK
+
    npm run dev:ngrok
 
    *** chạy ui
@@ -69,7 +72,9 @@ API_URL=
 Ứng dụng sử dụng mysql
 
 
+## Packages sử dụng
 
-## Tác giả alex - nguyenvuquangphuc
+
+## Tác giả
 
 

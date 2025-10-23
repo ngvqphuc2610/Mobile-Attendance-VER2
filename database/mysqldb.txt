@@ -483,3 +483,20 @@ CREATE TABLE `user_roles` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2025-10-22 21:10:26
+
+-- Thêm giá trị mới cho method
+ALTER TABLE attendance
+  MODIFY COLUMN method ENUM('face','barcode','manual','pin','qr') NOT NULL;
+
+-- Chặn điểm danh trùng 1 student cho 1 session
+-- (chú ý: user_id hiện nullable, nhưng khi chèn từ check-in nên luôn gửi non-null)
+ALTER TABLE attendance
+  ADD UNIQUE KEY uq_attendance_session_user (session_id, user_id);
+
+-- Tăng tốc lookup theo PIN còn hạn
+CREATE INDEX idx_sct_pin_active_exp
+  ON session_checkin_tokens (pin_4, is_active, expires_at);
+
+-- Tuỳ chọn: tăng tốc kiểm tra token QR (id là PK đã đủ; nếu bạn hay truy vấn theo nonce)
+CREATE INDEX idx_sct_session_nonce
+  ON session_checkin_tokens (session_id, nonce);
