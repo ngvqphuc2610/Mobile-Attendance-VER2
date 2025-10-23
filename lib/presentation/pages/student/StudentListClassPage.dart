@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../presentation/bloc/enrollment/enrollment_bloc.dart';
 import '../../../presentation/bloc/enrollment/enrollment_event.dart';
 import '../../../presentation/bloc/enrollment/enrollment_state.dart';
+import 'StudentDetailClassPage.dart';
 
 class StudentListClassPage extends StatefulWidget {
   final String studentId;
@@ -103,6 +104,15 @@ class StudentListClassPageState extends State<StudentListClassPage> {
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StudentDetailClassPage(
+                            classSectionId: enrollment.sectionId ?? '',
+                           
+                          ),
+                        ),
+                      );
                       // Navigate to class detail if needed
                     },
                   ),

@@ -40,3 +40,12 @@ class SessionCheckinTokenError extends SessionCheckinTokenState {
   @override
   List<Object?> get props => [message];
 }
+
+class SessionCheckinTokenClosed extends SessionCheckinTokenState {}
+
+class SessionCheckinTokenExtended extends SessionCheckinTokenState {
+  final SessionCheckinToken token;
+  const SessionCheckinTokenExtended(this.token);
+  @override
+  List<Object?> get props => [token];
+}
