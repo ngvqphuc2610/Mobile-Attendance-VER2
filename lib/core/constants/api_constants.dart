@@ -49,7 +49,8 @@ class ApiConstants {
   static const String sessionCheckinTokensOpen   = '/session-checkin-tokens/open';   // POST
   static const String sessionCheckinTokensClose  = '/session-checkin-tokens/close';  // POST
   static const String sessionCheckinTokensExtend = '/session-checkin-tokens/extend'; // POST
-
+  // Student schedules
+  static const String studentSchedules = '/student-schedules';
 
 
   static String _resolveBaseUrl() {
