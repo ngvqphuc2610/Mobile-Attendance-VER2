@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +6,8 @@ import '../../core/constants/app_theme.dart';
 import '../../core/services/biometric_auth.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../widgets/BiometricLoginButton.dart';
+import 'login/widgets/login_form_section.dart';
+import 'login/widgets/login_buttons_section.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _biometricAvailable = false;
   bool _biometricBusy = false;
+  bool _isTotpDialogVisible = false;
   List<BiometricAccount> _biometricAccounts = const [];
   BiometricAccount? _selectedBiometricAccount;
 
@@ -120,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
     if (!_biometricAvailable || _selectedBiometricAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không tìm thấy tài khoản sinh trắc học.'),
+          content: Text('Không thể đăng nhập bằng vân tay.'),
         ),
       );
       return;
@@ -136,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
     if (!didAuthenticate) {
       setState(() => _biometricBusy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xác thực sinh trắc học thất bại.')),
+        const SnackBar(content: Text('Xác thực vân tay thất bại.')),
       );
       return;
     }
@@ -164,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Text(
-                'Chọn tài khoản',
+                'Chọn tài khoản đăng nhập',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
@@ -208,16 +211,18 @@ class _LoginPageState extends State<LoginPage> {
                 backgroundColor: Colors.red,
               ),
             );
+          } else if (state is AuthLoginTotpRequired) {
+            await _showTotpDialog(state);
           } else if (state is AuthAuthenticated) {
             try {
-              // ✅ LOGIC MỚI: Không can thiệp vào biometric đã được bật trong AccountPage
-              // Chỉ lưu/cập nhật nếu user CHỌN "Ghi nhớ đăng nhập"
+              // âœ… LOGIC Má»šI: KhÃ´ng can thiá»‡p vÃ o biometric Ä‘Ã£ Ä‘Æ°á»£c báº­t trong AccountPage
+              // Chá»‰ lÆ°u/cáº­p nháº­t náº¿u user CHá»ŒN "Ghi nhá»› Ä‘Äƒng nháº­p"
               
               final userId = state.user.id;
               final alreadyEnabled = await BiometricAuth.isEnabled(userId);
               
               if (_rememberMe && (_lastLoginPassword?.isNotEmpty ?? false)) {
-                // User tick "Ghi nhớ" → Lưu/cập nhật thông tin
+                // User tick "Ghi nhá»›" â†’ LÆ°u/cáº­p nháº­t thÃ´ng tin
                 final account = BiometricAccount(
                   userId: userId,
                   email: state.user.email,
@@ -227,16 +232,16 @@ class _LoginPageState extends State<LoginPage> {
                 );
                 await BiometricAuth.saveAccount(account);
               } else if (!_rememberMe && !alreadyEnabled) {
-                // User KHÔNG tick "Ghi nhớ" VÀ chưa bật biometric trong settings
-                // → Không làm gì cả (giữ nguyên trạng thái)
-                // ✅ QUAN TRỌNG: Không xóa nếu đã được bật trong AccountPage
+                // User KHÃ”NG tick "Ghi nhá»›" VÃ€ chÆ°a báº­t biometric trong settings
+                // â†’ KhÃ´ng lÃ m gÃ¬ cáº£ (giá»¯ nguyÃªn tráº¡ng thÃ¡i)
+                // âœ… QUAN TRá»ŒNG: KhÃ´ng xÃ³a náº¿u Ä‘Ã£ Ä‘Æ°á»£c báº­t trong AccountPage
               }
-              // Nếu alreadyEnabled = true và không tick "Ghi nhớ"
-              // → GIỮ NGUYÊN, không xóa
+              // Náº¿u alreadyEnabled = true vÃ  khÃ´ng tick "Ghi nhá»›"
+              // â†’ GIá»® NGUYÃŠN, khÃ´ng xÃ³a
               
             } catch (e) {
               debugPrint('Biometric save error: $e');
-              // Bỏ qua lỗi secure storage
+              // Bá» qua lá»—i secure storage
             }
             
             if (!mounted) return;
@@ -289,7 +294,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 5),
         const Text(
-          'Hệ thống điểm danh thông minh',
+          'Hệ thống quản lý sinh viên thông minh',
           style: TextStyle(fontSize: 16, color: Colors.grey),
         ),
       ],
@@ -297,87 +302,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLoginForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          TextFormField(
-            controller: _emailController,
-            decoration: InputDecoration(
-              labelText: 'Email',
-              prefixIcon: const Icon(Icons.email),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-              ),
-            ),
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Vui lòng nhập email';
-              }
-              if (!RegExp(
-                r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$',
-              ).hasMatch(value.trim())) {
-                return 'Email không hợp lệ';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(
-              labelText: 'Mật khẩu',
-              prefixIcon: const Icon(Icons.lock),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-              ),
-            ),
-            obscureText: _obscurePassword,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Vui lòng nhập mật khẩu';
-              }
-              if (value.length < 6) {
-                return 'Mật khẩu phải có ít nhất 6 ký tự';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Checkbox(
-                value: _rememberMe,
-                onChanged: (v) => setState(() => _rememberMe = v ?? false),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _rememberMe = !_rememberMe),
-                  child: const Text('Ghi nhớ đăng nhập'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildForgotPassword() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton(
-        onPressed: _showForgotPasswordDialog,
-        child: const Text('Quên mật khẩu?'),
-      ),
+    return LoginFormSection(
+      formKey: _formKey,
+      emailController: _emailController,
+      passwordController: _passwordController,
+      obscurePassword: _obscurePassword,
+      onTogglePassword: (value) => setState(() => _obscurePassword = value),
+      rememberMe: _rememberMe,
+      onRememberMeChanged: (value) => setState(() => _rememberMe = value),
+      onSubmit: _login,
     );
   }
 
@@ -388,111 +321,28 @@ class _LoginPageState extends State<LoginPage> {
         final canUseBiometric =
             _biometricAvailable && _selectedBiometricAccount != null;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Nút đăng nhập chính
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-                  ),
-                  elevation: 0,
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : const Text(
-                        'Đăng nhập',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-            ),
-
-            // Divider "hoặc"
-            if (_biometricAccounts.isNotEmpty) ...[
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  const Expanded(child: Divider(thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'hoặc',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const Expanded(child: Divider(thickness: 1)),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Hàng nút vân tay + chip chọn tài khoản (nếu có nhiều)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  BiometricLoginButton(
-                    busy: _biometricBusy,
-                    onPressed: (!canUseBiometric || _biometricBusy)
-                        ? null
-                        : _handleBiometricLogin,
-                    tooltip: canUseBiometric
-                        ? 'Đăng nhập bằng vân tay'
-                        : 'Không khả dụng',
-                    size: 56,
-                  ),
-                  if (_biometricAccounts.length > 1) ...[
-                    const SizedBox(width: 12),
-                    ActionChip(
-                      avatar: const Icon(Icons.expand_more, size: 18),
-                      label: Text(
-                        _selectedBiometricAccount?.fullName.isNotEmpty == true
-                            ? _selectedBiometricAccount!.fullName
-                            : (_selectedBiometricAccount?.email ??
-                                  'Chọn tài khoản'),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      onPressed: _showBiometricAccountPicker,
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Hint text
-              if (canUseBiometric) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Chạm vào biểu tượng vân tay để đăng nhập nhanh',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ],
-          ],
+        return LoginButtonsSection(
+          isLoading: isLoading,
+          onLogin: _login,
+          biometricAvailable: _biometricAvailable,
+          biometricBusy: _biometricBusy,
+          onBiometricPressed:
+              canUseBiometric ? _handleBiometricLogin : null,
+          biometricAccounts: _biometricAccounts,
+          selectedAccount: _selectedBiometricAccount,
+          onPickAccount: _showBiometricAccountPicker,
         );
       },
+    );
+  }
+
+  Widget _buildForgotPassword() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: _showForgotPasswordDialog,
+        child: const Text('Quên mật khẩu?'),
+      ),
     );
   }
 
@@ -509,6 +359,77 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _showTotpDialog(AuthLoginTotpRequired state) async {
+    if (_isTotpDialogVisible) return;
+    setState(() => _isTotpDialogVisible = true);
+    final totpController = TextEditingController();
+    final message = state.message;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nhập mã xác thực hai bước'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: totpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Mã xác thực',
+                  prefixIcon: Icon(Icons.shield_outlined),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final code = totpController.text.trim();
+                if (code.length < 4) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Vui lòng nhập mã xác thực hợp lệ.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                context.read<AuthBloc>().add(
+                      AuthLoginRequested(
+                        email: state.email,
+                        password: state.password,
+                        totp: code,
+                      ),
+                    );
+              },
+              child: const Text('Xác nhận'),
+            ),
+          ],
+        );
+      },
+    );
+    if (mounted) {
+      setState(() => _isTotpDialogVisible = false);
+    }
+    totpController.dispose();
+  }
+
   void _showForgotPasswordDialog() {
     final emailController = TextEditingController();
     final rootContext = context;
@@ -520,7 +441,7 @@ class _LoginPageState extends State<LoginPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Nhập email để nhận link đặt lại mật khẩu:'),
+            const Text('Nhập email của bạn để đặt lại mật khẩu.'),
             const SizedBox(height: 16),
             TextFormField(
               controller: emailController,
@@ -535,7 +456,7 @@ class _LoginPageState extends State<LoginPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Hủy'),
+            child: const Text('hủy'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -543,7 +464,7 @@ class _LoginPageState extends State<LoginPage> {
               if (email.isEmpty) {
                 ScaffoldMessenger.of(rootContext).showSnackBar(
                   const SnackBar(
-                    content: Text('Vui lòng nhập email để tiếp tục'),
+                    content: Text('Vui lòng nhập email.'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -554,7 +475,7 @@ class _LoginPageState extends State<LoginPage> {
               ScaffoldMessenger.of(rootContext).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'Vui lòng liên hệ quản trị viên để được hỗ trợ đặt lại mật khẩu.',
+                    'Vui lòng kiểm tra email để đặt lại mật khẩu.',
                   ),
                 ),
               );
@@ -566,3 +487,5 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+

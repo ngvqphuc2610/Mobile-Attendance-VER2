@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import '../../../data/models/dto/register_otp_result.dart';
 import '../../../data/models/dto/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/services/api_service.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {
@@ -14,41 +16,45 @@ abstract class AuthEvent extends Equatable {
 class AuthLoginRequested extends AuthEvent {
   final String email;
   final String password;
+  final String? totp;
 
   const AuthLoginRequested({
     required this.email,
     required this.password,
+    this.totp,
   });
 
   @override
-  List<Object?> get props => [email, password];
+  List<Object?> get props => [email, password, totp];
 }
 
-class AuthRegisterRequested extends AuthEvent {
-  final String fullName;
-  final String email;
-  final String password;
-  final String? studentCode;
-  final String? phone;
-  final String? role;
+class AuthRegisterOtpRequested extends AuthEvent {
+  final RegisterRequestData data;
 
-  const AuthRegisterRequested({
-    required this.fullName,
-    required this.email,
-    required this.password,
-    this.studentCode,
-    this.phone,
-    this.role,
+  const AuthRegisterOtpRequested({required this.data});
+
+  @override
+  List<Object?> get props => [data];
+}
+
+class AuthRegisterOtpSubmitted extends AuthEvent {
+  final String transactionId;
+  final String otp;
+
+  const AuthRegisterOtpSubmitted({
+    required this.transactionId,
+    required this.otp,
   });
 
   @override
-  List<Object?> get props =>
-      [fullName, email, password, studentCode, phone, role];
+  List<Object?> get props => [transactionId, otp];
 }
 
 class AuthLogoutRequested extends AuthEvent {}
 
 class AuthCheckRequested extends AuthEvent {}
+
+class AuthRefreshRequested extends AuthEvent {}
 
 // States
 abstract class AuthState extends Equatable {
@@ -82,13 +88,30 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
-class AuthRegisterSuccess extends AuthState {
-  final String message;
+class AuthRegisterOtpSent extends AuthState {
+  final RegisterOtpResult result;
 
-  const AuthRegisterSuccess({required this.message});
+  const AuthRegisterOtpSent(this.result);
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [result];
+}
+
+
+
+class AuthLoginTotpRequired extends AuthState {
+  final String email;
+  final String password;
+  final String message;
+
+  const AuthLoginTotpRequired({
+    required this.email,
+    required this.password,
+    required this.message,
+  });
+
+  @override
+  List<Object?> get props => [email, password, message];
 }
 
 // Bloc
@@ -99,9 +122,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       : _authRepository = authRepository,
         super(AuthInitial()) {
     on<AuthLoginRequested>(_onLoginRequested);
-    on<AuthRegisterRequested>(_onRegisterRequested);
+    on<AuthRegisterOtpRequested>(_onRegisterOtpRequested);
+    on<AuthRegisterOtpSubmitted>(_onRegisterOtpSubmitted);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthCheckRequested>(_onCheckRequested);
+    on<AuthRefreshRequested>(_onRefreshRequested);
   }
 
   Future<void> _onLoginRequested(
@@ -111,33 +136,53 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
     
     try {
-      final user = await _authRepository.login(event.email, event.password);
+      final user = await _authRepository.login(
+        event.email,
+        event.password,
+        totp: event.totp,
+      );
       emit(AuthAuthenticated(user: user));
+    } on NeedTotpException catch (e) {
+      emit(
+        AuthLoginTotpRequired(
+          email: event.email,
+          password: event.password,
+          message: e.message,
+        ),
+      );
     } catch (e) {
       emit(AuthError(message: e.toString()));
     }
   }
 
-  Future<void> _onRegisterRequested(
-    AuthRegisterRequested event,
+  Future<void> _onRegisterOtpRequested(
+    AuthRegisterOtpRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
 
     try {
-      final message = await _authRepository.register(
-        fullName: event.fullName,
-        email: event.email,
-        password: event.password,
-        studentCode: event.studentCode,
-        phone: event.phone,
-        role: event.role,
+      final result = await _authRepository.requestRegisterOtp(
+        data: event.data,
       );
-      final successMessage = message.isNotEmpty
-          ? message
-          : 'Dang ky thanh cong. Vui long dang nhap.';
-      emit(AuthRegisterSuccess(message: successMessage));
-      emit(AuthUnauthenticated());
+      emit(AuthRegisterOtpSent(result));
+    } catch (e) {
+      emit(AuthError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onRegisterOtpSubmitted(
+    AuthRegisterOtpSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      final user = await _authRepository.verifyRegisterOtp(
+        transactionId: event.transactionId,
+        otp: event.otp,
+      );
+      emit(AuthAuthenticated(user: user));
     } catch (e) {
       emit(AuthError(message: e.toString()));
     }
@@ -152,6 +197,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       await _authRepository.logout();
       emit(AuthUnauthenticated());
+    } catch (e) {
+      emit(AuthError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onRefreshRequested(
+    AuthRefreshRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    
+    try {
+      final user = await _authRepository.refreshCurrentUser();
+      if (user != null) {
+        emit(AuthAuthenticated(user: user));
+      } else {
+        emit(AuthUnauthenticated());
+      }
     } catch (e) {
       emit(AuthError(message: e.toString()));
     }

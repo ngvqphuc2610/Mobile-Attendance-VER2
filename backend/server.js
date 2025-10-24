@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
