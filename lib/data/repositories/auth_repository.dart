@@ -10,6 +10,28 @@ class AuthRepository {
     }
   }
 
+  Future<String> register({
+    required String fullName,
+    required String email,
+    required String password,
+    String? studentCode,
+    String? phone,
+    String? role,
+  }) async {
+    try {
+      return await AuthService.register(
+        fullName: fullName,
+        email: email,
+        password: password,
+        studentCode: studentCode,
+        phone: phone,
+        role: role,
+      );
+    } catch (e) {
+      throw Exception(e.toString());
+    }
+  }
+
   Future<void> logout() async {
     try {
       await AuthService.logout();

@@ -256,6 +256,8 @@ class _LoginPageState extends State<LoginPage> {
                 _buildForgotPassword(),
                 const SizedBox(height: 20),
                 _buildLoginButtons(),
+                const SizedBox(height: 12),
+                _buildRegisterLink(),
               ],
             ),
           ),
@@ -491,6 +493,19 @@ class _LoginPageState extends State<LoginPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildRegisterLink() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('Chua co tai khoan?'),
+        TextButton(
+          onPressed: () => context.go('/register'),
+          child: const Text('Dang ky'),
+        ),
+      ],
     );
   }
 

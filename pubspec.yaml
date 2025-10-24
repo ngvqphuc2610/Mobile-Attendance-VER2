@@ -80,6 +80,7 @@ dependencies:
   # Geolocation
   geolocator: ^14.0.2
   geocoding: ^4.0.0
+  smart_auth: ^3.2.0
 
 dev_dependencies:
   flutter_test:

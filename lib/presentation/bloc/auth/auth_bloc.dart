@@ -24,6 +24,28 @@ class AuthLoginRequested extends AuthEvent {
   List<Object?> get props => [email, password];
 }
 
+class AuthRegisterRequested extends AuthEvent {
+  final String fullName;
+  final String email;
+  final String password;
+  final String? studentCode;
+  final String? phone;
+  final String? role;
+
+  const AuthRegisterRequested({
+    required this.fullName,
+    required this.email,
+    required this.password,
+    this.studentCode,
+    this.phone,
+    this.role,
+  });
+
+  @override
+  List<Object?> get props =>
+      [fullName, email, password, studentCode, phone, role];
+}
+
 class AuthLogoutRequested extends AuthEvent {}
 
 class AuthCheckRequested extends AuthEvent {}
@@ -60,6 +82,15 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
+class AuthRegisterSuccess extends AuthState {
+  final String message;
+
+  const AuthRegisterSuccess({required this.message});
+
+  @override
+  List<Object?> get props => [message];
+}
+
 // Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
@@ -68,6 +99,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       : _authRepository = authRepository,
         super(AuthInitial()) {
     on<AuthLoginRequested>(_onLoginRequested);
+    on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthCheckRequested>(_onCheckRequested);
   }
@@ -81,6 +113,31 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final user = await _authRepository.login(event.email, event.password);
       emit(AuthAuthenticated(user: user));
+    } catch (e) {
+      emit(AuthError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onRegisterRequested(
+    AuthRegisterRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      final message = await _authRepository.register(
+        fullName: event.fullName,
+        email: event.email,
+        password: event.password,
+        studentCode: event.studentCode,
+        phone: event.phone,
+        role: event.role,
+      );
+      final successMessage = message.isNotEmpty
+          ? message
+          : 'Dang ky thanh cong. Vui long dang nhap.';
+      emit(AuthRegisterSuccess(message: successMessage));
+      emit(AuthUnauthenticated());
     } catch (e) {
       emit(AuthError(message: e.toString()));
     }
