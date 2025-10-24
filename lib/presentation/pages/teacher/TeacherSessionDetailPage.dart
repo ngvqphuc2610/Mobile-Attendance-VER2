@@ -270,47 +270,63 @@ class _FabActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      direction: Axis.vertical,
-      spacing: 10,
-      children: [
-        FloatingActionButton.extended(
-          heroTag: 'open',
-          onPressed: () {
-            context.read<SessionCheckinTokenBloc>().add(
-              //cho giới hạn 3p
-              OpenSessionCheckinToken(
-                sessionId: sessionId,
-                durationSeconds: 180,
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16, right: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton(
+                heroTag: 'open',
+                mini: true,
+                tooltip: 'Open',
+                backgroundColor: Colors.green,
+                onPressed: () {
+                  context.read<SessionCheckinTokenBloc>().add(
+                    OpenSessionCheckinToken(
+                      sessionId: sessionId,
+                      durationSeconds: 180,
+                    ),
+                  );
+                },
+                child: const Icon(Icons.play_arrow, size: 20),
               ),
-            );
-          },
-          icon: const Icon(Icons.play_arrow),
-          label: const Text('Open'),
+              const SizedBox(height: 8),
+              FloatingActionButton(
+                heroTag: 'extend',
+                mini: true,
+                tooltip: 'Extend',
+                backgroundColor: Colors.orange,
+                onPressed: () {
+                  context.read<SessionCheckinTokenBloc>().add(
+                    ExtendSessionCheckinToken(
+                      sessionId: sessionId,
+                      addSeconds: 120,
+                    ),
+                  );
+                },
+                child: const Icon(Icons.more_time, size: 20),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton(
+                heroTag: 'close',
+                mini: true,
+                tooltip: 'Close',
+                backgroundColor: Colors.red,
+                onPressed: () {
+                  context.read<SessionCheckinTokenBloc>().add(
+                    CloseSessionCheckinToken(sessionId),
+                  );
+                },
+                child: const Icon(Icons.stop, size: 20),
+              ),
+            ],
+          ),
         ),
-        FloatingActionButton.extended(
-          heroTag: 'extend',
-          onPressed: () {
-            context.read<SessionCheckinTokenBloc>().add(
-              ExtendSessionCheckinToken(sessionId: sessionId, addSeconds: 120),
-            );
-          },
-          icon: const Icon(Icons.more_time),
-          label: const Text('Extend'),
-          backgroundColor: Colors.orange,
-        ),
-        FloatingActionButton.extended(
-          heroTag: 'close',
-          onPressed: () {
-            context.read<SessionCheckinTokenBloc>().add(
-              CloseSessionCheckinToken(sessionId),
-            );
-          },
-          icon: const Icon(Icons.stop),
-          label: const Text('Close'),
-          backgroundColor: Colors.red,
-        ),
-      ],
+      ),
     );
   }
 }

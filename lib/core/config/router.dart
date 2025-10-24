@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../presentation/pages/admin/AdminShell.dart';
 import '../../presentation/pages/attendance_page.dart';
 import '../../presentation/pages/login_page.dart';
+import '../../presentation/pages/register_page.dart';
 import '../../presentation/pages/splash_role_gate.dart';
 import '../../presentation/pages/student/StudentShell.dart';
 import '../../presentation/pages/teacher/TeacherShell.dart';
@@ -12,6 +13,7 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
   routes: <RouteBase>[
     GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
+    GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
     GoRoute(path: '/splash', builder: (_, __) => const SplashRoleGatePage()),
 
     // Shells theo vai trò

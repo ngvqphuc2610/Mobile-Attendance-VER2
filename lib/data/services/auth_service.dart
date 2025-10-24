@@ -29,6 +29,34 @@ class AuthService {
       throw Exception('Login failed: $e');
     }
   }
+
+  static Future<String> register({
+    required String fullName,
+    required String email,
+    required String password,
+    String? studentCode,
+    String? phone,
+    String? role,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'full_name': fullName,
+        'email': email,
+        'password': password,
+        if (studentCode != null && studentCode.isNotEmpty) 'code': studentCode,
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        if (role != null && role.isNotEmpty) 'role': role,
+      };
+      final response = await ApiService.register(payload);
+      final message = response['message'];
+      if (message is String && message.isNotEmpty) {
+        return message;
+      }
+      return 'Dang ky thanh cong';
+    } catch (e) {
+      throw Exception('Registration failed: $e');
+    }
+  }
   
   static Future<void> logout() async {
     try {

@@ -42,6 +42,29 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> register(
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.register}'),
+      headers: ApiConstants.headers,
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final parsed = _parseJsonSafe(response.body);
+      return Map<String, dynamic>.from(
+        parsed is Map ? parsed : <String, dynamic>{},
+      );
+    }
+
+    final error = _parseJsonSafe(response.body);
+    final message = (error is Map && error['error'] != null)
+        ? error['error'].toString()
+        : 'Registration failed';
+    throw Exception(message);
+  }
+
   static Future<UserModel> getCurrentUser() async {
     final response = await http.get(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}'),

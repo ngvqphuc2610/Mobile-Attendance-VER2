@@ -14,6 +14,7 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
     on<DeleteEnrollment>(_onDeleteEnrollment);
     on<FilterEnrollments>(_onFilterEnrollments);
     on<LoadEnrollmentsBySection>(_onLoadEnrollmentsBySection);
+    on<LoadEnrollmentsByStudent>(_onLoadEnrollmentsByStudent);
   }
 
   Future<void> _onLoadEnrollments(
@@ -108,6 +109,27 @@ class EnrollmentBloc extends Bloc<EnrollmentEvent, EnrollmentState> {
     try {
       final enrollments = await _repository.getEnrollments(
         sectionId: event.sectionId,
+      );
+
+      emit(
+        EnrollmentsLoaded(
+          enrollments: enrollments,
+          filteredEnrollments: enrollments,
+        ),
+      );
+    } catch (e) {
+      emit(EnrollmentError(e.toString()));
+    }
+  }
+  Future<void> _onLoadEnrollmentsByStudent(
+    LoadEnrollmentsByStudent event,
+    Emitter<EnrollmentState> emit,
+  ) async {
+    emit(EnrollmentLoading());
+
+    try {
+      final enrollments = await _repository.getEnrollments(
+        studentId: event.studentId,
       );
 
       emit(

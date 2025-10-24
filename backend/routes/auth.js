@@ -66,6 +66,45 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Register
+router.post('/register', async (req, res) => {
+  try {
+    const {
+      full_name, email, password, code, role, phone
+    } = req.body;
+
+    if (!full_name || !email || !password) {
+      return res.status(400).json({ error: 'Full name, email, and password required' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const profileId = uuidv4();
+    const accountId = uuidv4();
+
+    await db.execute(
+      `INSERT INTO profiles (id, code, full_name, email, phone, is_active) 
+       VALUES (?, ?, ?, ?, ?, 1)`,
+      [profileId, code, full_name, email, phone]
+    );
+
+    await db.execute(
+      `INSERT INTO accounts (id, profile_id, email, password_hash, is_active) 
+       VALUES (?, ?, ?, ?, 1)`,
+      [accountId, profileId, email, hashedPassword]
+    );
+
+    await db.execute(
+      'INSERT INTO user_roles (user_id, role) VALUES (?, ?)',
+      [profileId, role]
+    );
+
+    res.status(201).json({ message: 'Account created successfully' });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
 // Get current user
 router.get('/me', authenticateToken, (req, res) => {
   res.json({
