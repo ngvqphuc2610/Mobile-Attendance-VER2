@@ -20,9 +20,15 @@ class ApiConstants {
 
   // Auth
   static const String login = '/auth/login';
-  static const String register = '/auth/register';
+  static const String registerRequestOtp = '/auth/register/request-otp';
+  static const String registerVerifyOtp = '/auth/register/verify-otp';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';
+  static const String totpInit = '/auth/totp/init';
+  static const String totpEnable = '/auth/totp/enable';
+  static const String totpDisable = '/auth/totp/disable';
+  static const String totpVerify = '/auth/totp/verify';
+
 
   // Core resources
   static const String accounts = '/accounts';

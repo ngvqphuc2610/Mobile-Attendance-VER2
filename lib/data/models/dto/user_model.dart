@@ -9,6 +9,8 @@ class UserModel {
   final String? phone;
   final bool isActive;
   final DateTime? createdAt;
+  final bool phoneVerified;
+  final bool totpEnabled;
 
   UserModel({
     required this.id,
@@ -19,6 +21,8 @@ class UserModel {
     this.phone,
     this.isActive = true,
     this.createdAt,
+    this.phoneVerified = false,
+    this.totpEnabled = false,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -30,6 +34,16 @@ class UserModel {
       role: json['role'] ?? '',
       phone: json['phone'],
       isActive: json['is_active'] ?? true,
+      phoneVerified: json['phone_verified'] is bool
+          ? json['phone_verified'] as bool
+          : (json['phone_verified'] is num
+              ? (json['phone_verified'] as num) != 0
+              : false),
+      totpEnabled: json['totp_enabled'] is bool
+          ? json['totp_enabled'] as bool
+          : (json['totp_enabled'] is num
+              ? (json['totp_enabled'] as num) != 0
+              : false),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : null,
@@ -45,6 +59,8 @@ class UserModel {
       'role': role,
       'phone': phone,
       'is_active': isActive,
+      'phone_verified': phoneVerified,
+      'totp_enabled': totpEnabled,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -57,6 +73,8 @@ class UserModel {
     String? role,
     String? phone,
     bool? isActive,
+    bool? phoneVerified,
+    bool? totpEnabled,
     DateTime? createdAt,
   }) {
     return UserModel(
@@ -67,6 +85,8 @@ class UserModel {
       role: role ?? this.role,
       phone: phone ?? this.phone,
       isActive: isActive ?? this.isActive,
+      phoneVerified: phoneVerified ?? this.phoneVerified,
+      totpEnabled: totpEnabled ?? this.totpEnabled,
       createdAt: createdAt ?? this.createdAt,
     );
   }

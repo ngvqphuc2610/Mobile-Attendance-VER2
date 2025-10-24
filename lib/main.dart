@@ -9,6 +9,7 @@ import 'presentation/bloc/auth/auth_bloc.dart';
 import 'presentation/bloc/student/student_bloc.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/student_repository.dart';
+import 'package:smart_auth/smart_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +20,10 @@ void main() async {
     try {
       await dotenv.load(fileName: ".env");
       print("✅ Environment loaded");
+
+      final smartAuth = SmartAuth.instance;
+      final hash = await smartAuth.getAppSignature();
+      print("📱 ANDROID_SMS_HASH = $hash");
     } catch (e) {
       print("⚠️ No .env file found, using default values");
     }

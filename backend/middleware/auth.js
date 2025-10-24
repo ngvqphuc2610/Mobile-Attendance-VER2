@@ -14,10 +14,17 @@ const authenticateToken = async (req, res, next) => {
     
     // Get user info from database
     const [users] = await db.execute(
-      `SELECT p.*, ur.role, a.email 
-       FROM profiles p 
-       JOIN user_roles ur ON p.id = ur.user_id 
-       JOIN accounts a ON p.id = a.profile_id 
+      `SELECT 
+         p.*,
+         ur.role,
+         a.id AS account_id,
+         a.email,
+         a.is_phone_verified,
+         a.is_active AS account_active,
+         (SELECT COUNT(1) FROM account_totp atp WHERE atp.account_id = a.id) AS totp_enabled
+       FROM profiles p
+       JOIN user_roles ur ON p.id = ur.user_id
+       JOIN accounts a ON p.id = a.profile_id
        WHERE p.id = ? AND p.is_active = 1`,
       [decoded.userId]
     );
@@ -26,7 +33,15 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found or inactive' });
     }
 
-    req.user = users[0];
+    const user = users[0];
+    if (!user.account_active) {
+      return res.status(401).json({ error: 'Account is inactive' });
+    }
+
+    req.user = {
+      ...user,
+      totp_enabled: Boolean(user.totp_enabled),
+    };
     next();
   } catch (error) {
     return res.status(403).json({ error: 'Invalid token' });

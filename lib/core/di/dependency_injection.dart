@@ -29,6 +29,9 @@ import '../../presentation/bloc/subject/subject_bloc.dart';
 import '../../presentation/bloc/teacher/teacher_bloc.dart';
 import '../../presentation/bloc/teaching_assignment/teaching_assignment_bloc.dart';
 import '../../presentation/bloc/session_checkin_token/session_checkin_token_bloc.dart';
+import '../../domain/usecases/auth/enable_totp_usecase.dart';
+import '../../domain/usecases/auth/disable_totp_usecase.dart';
+import '../../domain/usecases/auth/verify_totp_usecase.dart';
 
 final GetIt getIt = GetIt.instance;
 final GetIt sl = getIt;
@@ -95,10 +98,19 @@ Future<void> setupDependencyInjection() async {
   getIt.registerFactory<ClassSectionBloc>(
     () => ClassSectionBloc(classSectionRepository: getIt()),
   );
-  getIt.registerFactory<AccountBloc>(
-    () => AccountBloc(repository: getIt()),
-  );
+  getIt.registerFactory<AccountBloc>(() => AccountBloc(repository: getIt()));
   getIt.registerFactory<SessionCheckinTokenBloc>(
     () => SessionCheckinTokenBloc(repository: getIt()),
+  );
+
+  // Usecases
+  getIt.registerLazySingleton<EnableTotpUsecase>(
+    () => EnableTotpUsecase(getIt<AuthRepository>()),
+  );
+  getIt.registerLazySingleton<DisableTotpUsecase>(
+    () => DisableTotpUsecase(getIt<AuthRepository>()),
+  );
+  getIt.registerLazySingleton<VerifyTotpUsecase>(
+    () => VerifyTotpUsecase(getIt<AuthRepository>()),
   );
 }
