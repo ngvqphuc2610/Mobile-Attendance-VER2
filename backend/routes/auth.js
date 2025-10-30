@@ -571,81 +571,107 @@ router.get('/me', authenticateToken, (req, res) => {
 });
 
 // =========================
-// Kiểm tra trạng thái SMS
+// SMS status by transactionId
 // =========================
-router.post('/sms/check-report', async (req, res) => {
+router.post('/sms/check-status', async (req, res) => {
   const { transactionId } = req.body;
 
   if (!transactionId) {
-    return res.status(400).json({ error: 'Thiếu transactionId.' });
+    return res.status(400).json({ error: 'Missing transactionId.' });
   }
 
   try {
     const [[otpRequest]] = await db.execute(
-      `SELECT sms_id FROM phone_otp_requests WHERE id = ?`,
-      [transactionId]
+      'SELECT sms_id FROM phone_otp_requests WHERE id = ? LIMIT 1',
+      [transactionId],
     );
 
     if (!otpRequest || !otpRequest.sms_id) {
-      return res.status(404).json({ error: 'Không tìm thấy SMSID.' });
+      return res.status(404).json({ error: 'SMS transaction not found.' });
     }
 
-    const { getSmsSendReport } = require('../services/esmsService');
-    const report = await getSmsSendReport(otpRequest.sms_id);
+    const report = await getSmsStatus(otpRequest.sms_id);
 
     if (!report) {
-      return res.status(500).json({ error: 'Không thể lấy report từ eSMS.' });
+      return res
+        .status(500)
+        .json({ error: 'Unable to fetch report from SpeedSMS.' });
     }
 
+    const statusMessages = {
+      '0': 'Pending',
+      '1': 'Submitted to carrier',
+      '2': 'Carrier received',
+      '3': 'Delivered',
+      '-1': 'Failed',
+      '-2': 'Invalid phone number',
+      '-3': 'Subscriber inactive',
+    };
+
+    const statusCode = String(report.smsStatus ?? '');
     res.json({
-      smsId: otpRequest.sms_id,
-      status: report.Status,
-      errorCode: report.ErrorCode,
-      errorMessage: report.ErrorMessage,
-      receiveTime: report.ReceiveTime,
+      tranId: otpRequest.sms_id,
+      status: statusCode,
+      statusMessage: statusMessages[statusCode] || report.message || 'Unknown',
+      phone: report.phone,
+      content: report.content,
+      sendTime: report.sendTime,
     });
   } catch (error) {
-    console.error('Check SMS report error:', error);
-    res.status(500).json({ error: 'Lỗi khi kiểm tra report SMS.' });
+    console.error('Check SMS status error:', error);
+    res.status(500).json({ error: 'Unable to check SMS status.' });
   }
 });
 
 // =========================
-// Test: Kiểm tra report bằng SMSID trực tiếp
+// SMS status by tranId
 // =========================
-router.post('/sms/check-report-by-smsid', async (req, res) => {
-  const { smsId } = req.body;
+router.post('/sms/check-status-direct', async (req, res) => {
+  const { tranId } = req.body;
 
-  if (!smsId) {
-    return res.status(400).json({ error: 'Thiếu smsId.' });
+  if (!tranId) {
+    return res.status(400).json({ error: 'Missing tranId.' });
   }
 
   try {
-    const { getSmsSendReport } = require('../services/esmsService');
-    const report = await getSmsSendReport(smsId);
+    const report = await getSmsStatus(tranId);
 
     if (!report) {
-      return res.status(500).json({ error: 'Không thể lấy report từ eSMS.' });
+      return res
+        .status(500)
+        .json({ error: 'Unable to fetch report from SpeedSMS.' });
     }
 
+    const statusMessages = {
+      '0': 'Pending',
+      '1': 'Submitted to carrier',
+      '2': 'Carrier received',
+      '3': 'Delivered',
+      '-1': 'Failed',
+      '-2': 'Invalid phone number',
+      '-3': 'Subscriber inactive',
+    };
+
+    const statusCode = String(report.smsStatus ?? '');
     res.json({
-      smsId,
-      status: report.Status,
-      errorCode: report.ErrorCode,
-      errorMessage: report.ErrorMessage,
-      receiveTime: report.ReceiveTime,
+      tranId,
+      status: statusCode,
+      statusMessage: statusMessages[statusCode] || report.message || 'Unknown',
+      phone: report.phone,
+      content: report.content,
+      sendTime: report.sendTime,
     });
   } catch (error) {
-    console.error('Check SMS report error:', error);
-    res.status(500).json({ error: 'Lỗi khi kiểm tra report SMS.' });
+    console.error('Check SMS status (direct) error:', error);
+    res.status(500).json({ error: 'Unable to check SMS status.' });
   }
 });
 
 // =========================
-// Đăng xuất
+// Logout
 // =========================
 router.post('/logout', authenticateToken, (_req, res) => {
-  res.json({ message: 'Đăng xuất thành công.' });
+  res.json({ message: '�ang xu?t th�nh c�ng.' });
 });
 
 module.exports = router;
