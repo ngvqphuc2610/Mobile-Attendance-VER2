@@ -1,10 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
-import 'package:local_auth/local_auth.dart';
 
 import '../../core/constants/app_theme.dart';
+import '../../core/services/biometric_auth.dart';
 import '../../core/di/dependency_injection.dart';
 import '../../domain/usecases/auth/disable_totp_usecase.dart';
 import '../../domain/usecases/auth/enable_totp_usecase.dart';
@@ -25,7 +27,6 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> {
-  final LocalAuthentication _localAuth = LocalAuthentication();
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
   static const _androidOptions = AndroidOptions(
@@ -51,21 +52,32 @@ class _AccountPageState extends State<AccountPage> {
 
   Future<void> _loadBiometricState() async {
     try {
-      final available = await _localAuth.canCheckBiometrics;
-      final enabled = await _secure.read(
-        key: 'biometric_enabled',
-        aOptions: _androidOptions,
-        iOptions: _iosOptions,
-      );
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthAuthenticated) {
+        if (mounted) {
+          setState(() {
+            _biometricAvailable = false;
+            _biometricEnabled = false;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final available = await BiometricAuth.canAuthenticate();
+      final userId = authState.user.id;
+      final storedAccount = await BiometricAuth.getAccount(userId);
+      final enabled =
+          storedAccount != null && await BiometricAuth.isEnabled(userId);
 
       if (mounted) {
         setState(() {
           _biometricAvailable = available;
-          _biometricEnabled = enabled == 'true';
+          _biometricEnabled = available && enabled;
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _biometricAvailable = false;
@@ -89,42 +101,81 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _toggleBiometric(bool? value) async {
     if (value == null || _isLoading) return;
 
+    final state = context.read<AuthBloc>().state;
+    if (state is! AuthAuthenticated) {
+      _showError('Khong tim thay thong tin tai khoan hien tai.');
+      return;
+    }
+
     setState(() => _isLoading = true);
+
+    final user = state.user;
+    final userId = user.id;
+    final lastKey = 'biometric_last_$userId';
 
     try {
       if (value) {
-        final authenticated = await _localAuth.authenticate(
-          localizedReason: 'Xác thực để bật đăng nhập vân tay',
-          options: const AuthenticationOptions(
-            biometricOnly: true,
-            stickyAuth: true,
-          ),
+        final authenticated = await BiometricAuth.authenticate(
+          reason: 'Xac thuc de bat dang nhap van tay',
         );
 
-        if (authenticated) {
-          await _secure.write(
-            key: 'biometric_enabled',
-            value: 'true',
-            aOptions: _androidOptions,
-            iOptions: _iosOptions,
-          );
-          _showSuccess('Đã bật đăng nhập vân tay');
-        } else {
-          _showError('Xác thực thất bại');
+        if (!authenticated) {
+          _showError('Xac thuc that bai');
           return;
         }
-      } else {
-        await _secure.delete(
-          key: 'biometric_enabled',
+
+        final cachedJson = await _secure.read(
+          key: lastKey,
           aOptions: _androidOptions,
           iOptions: _iosOptions,
         );
-        _showSuccess('Đã tắt đăng nhập vân tay');
+
+        BiometricAccount? cachedAccount;
+        if (cachedJson != null && cachedJson.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(cachedJson);
+            if (decoded is Map<String, dynamic>) {
+              final parsed = BiometricAccount.fromJson(decoded);
+              if (parsed.password.isNotEmpty) {
+                cachedAccount = parsed;
+              }
+            }
+          } catch (_) {
+            cachedAccount = null;
+          }
+        }
+
+        if (cachedAccount == null) {
+          _showError(
+            'Khong tim thay mat khau gan nhat. Hay dang nhap lai bang email/mat khau roi thu lai.',
+          );
+          return;
+        }
+
+        final accountToSave = BiometricAccount(
+          userId: userId,
+          email: user.email,
+          password: cachedAccount.password,
+          fullName: user.fullName,
+          role: user.role,
+        );
+
+        await BiometricAuth.saveAccount(accountToSave);
+        await _secure.write(
+          key: lastKey,
+          value: jsonEncode(accountToSave.toJson()),
+          aOptions: _androidOptions,
+          iOptions: _iosOptions,
+        );
+        _showSuccess('Da bat dang nhap van tay');
+      } else {
+        await BiometricAuth.deleteAccount(userId);
+        _showSuccess('Da tat dang nhap van tay');
       }
 
       setState(() => _biometricEnabled = value);
     } catch (e) {
-      _showError('Có lỗi xảy ra: ${e.toString()}');
+      _showError('Co loi xay ra: ${e.toString()}');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -154,26 +205,25 @@ class _AccountPageState extends State<AccountPage> {
       if (!mounted) return;
 
       if (setupResult.isFailure) {
-        _showError('Không thể khởi tạo TOTP: ${setupResult.error}');
+        _showError('Khong the khoi tao TOTP: ${setupResult.error}');
         return;
       }
 
       final setup = setupResult.data;
       if (setup == null) {
-        _showError('Không thể lấy thông tin TOTP');
+        _showError('Khong the lay thong tin TOTP');
         return;
       }
 
       final totpCode = await TotpCodeDialog.show(
         context: context,
-        title: 'Bật xác thực 2 bước',
+        title: 'Bat xac thuc 2 buoc',
         message:
-            'Quét mã QR bằng ứng dụng Google Authenticator và nhập mã 6 số:\n\n⚠️ Lưu ý: Nếu tắt dialog, bạn phải quét lại từ đầu!',
+            'Quet ma QR bang ung dung Google Authenticator va nhap ma 6 so.\n\nNeu dong hop thoai, ban can quet lai tu dau.',
         qrCodeImage: setup.qrDataUrl,
       );
 
       if (totpCode != null && totpCode.isNotEmpty) {
-        // Verify TOTP code with backend
         final verifyResult = await enableUsecase.verify(
           secret: setup.secret,
           token: totpCode,
@@ -182,16 +232,22 @@ class _AccountPageState extends State<AccountPage> {
         if (!mounted) return;
 
         if (verifyResult.isFailure) {
-          _showError('Mã xác thực không chính xác: ${verifyResult.error}');
+          _showError('Ma xac thuc khong chinh xac: ${verifyResult.error}');
           return;
         }
 
         setState(() => _totpEnabled = true);
-        _showSuccess('Đã bật xác thực 2 bước thành công');
-        context.read<AuthBloc>().add(AuthRefreshRequested());
+        _showSuccess('Da bat xac thuc 2 buoc thanh cong');
+
+        final authState = context.read<AuthBloc>().state;
+        if (authState is AuthAuthenticated) {
+          context.read<AuthBloc>().add(
+            AuthUserUpdated(authState.user.copyWith(totpEnabled: true)),
+          );
+        }
       }
     } catch (e) {
-      _showError('Không thể bật xác thực 2 bước: ${e.toString()}');
+      _showError('Khong the bat xac thuc 2 buoc: ${e.toString()}');
     }
   }
 
@@ -199,8 +255,8 @@ class _AccountPageState extends State<AccountPage> {
     try {
       final code = await TotpCodeDialog.show(
         context: context,
-        title: 'Tắt xác thực 2 bước',
-        message: 'Nhập mã xác thực để tắt:',
+        title: 'Tat xac thuc 2 buoc',
+        message: 'Nhap ma xac thuc de tat:',
       );
 
       if (code != null) {
@@ -208,22 +264,29 @@ class _AccountPageState extends State<AccountPage> {
         await usecase.call(code);
 
         setState(() => _totpEnabled = false);
-        _showSuccess('Đã tắt xác thực 2 bước');
-        if (mounted) {
-          context.read<AuthBloc>().add(AuthRefreshRequested());
+        _showSuccess('Da tat xac thuc 2 buoc');
+
+        final authState = context.read<AuthBloc>().state;
+        if (authState is AuthAuthenticated) {
+          context.read<AuthBloc>().add(
+            AuthUserUpdated(authState.user.copyWith(totpEnabled: false)),
+          );
         }
       }
     } catch (e) {
-      _showError('Không thể tắt xác thực 2 bước: ${e.toString()}');
+      _showError('Khong the tat xac thuc 2 buoc: ${e.toString()}');
     }
   }
 
   Future<void> _handleLogout() async {
-    await _secure.delete(
-      key: 'biometric_last',
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
-    );
+    final state = context.read<AuthBloc>().state;
+    if (state is AuthAuthenticated) {
+      await _secure.delete(
+        key: 'biometric_last_${state.user.id}',
+        aOptions: _androidOptions,
+        iOptions: _iosOptions,
+      );
+    }
 
     if (!mounted) return;
     context.read<AuthBloc>().add(AuthLogoutRequested());

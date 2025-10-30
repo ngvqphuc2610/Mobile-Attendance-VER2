@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_theme.dart';
+import '../../../core/constants/app_theme.dart';
 class RegisterForm extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController fullNameController;

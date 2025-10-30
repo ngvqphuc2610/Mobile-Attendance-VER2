@@ -7,7 +7,7 @@ const router = express.Router();
 
 /** Helpers */
 function genPin4() {
-  // 4 số, tránh 0000 nếu muốn:
+  // 4 số
   const n = Math.floor(Math.random() * 10000);
   return n.toString().padStart(4, '0');
 }

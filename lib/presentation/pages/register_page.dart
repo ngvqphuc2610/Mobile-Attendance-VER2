@@ -8,8 +8,8 @@ import 'package:smart_auth/smart_auth.dart';
 import '../../core/constants/app_theme.dart';
 import '../../data/models/dto/register_otp_result.dart';
 import '../bloc/auth/auth_bloc.dart';
-import 'register/widgets/register_form.dart';
-import 'register/widgets/register_otp_step.dart';
+import '../widgets/register/register_form.dart';
+import '../widgets/register/register_otp_step.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});

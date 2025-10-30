@@ -1,13 +1,15 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_theme.dart';
 import '../../core/services/biometric_auth.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../widgets/BiometricLoginButton.dart';
-import 'login/widgets/login_form_section.dart';
-import 'login/widgets/login_buttons_section.dart';
+import '../widgets/login/login_form_section.dart';
+import '../widgets/login/login_buttons_section.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,6 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
   bool _obscurePassword = true;
   bool _rememberMe = false;
@@ -31,6 +34,9 @@ class _LoginPageState extends State<LoginPage> {
   BiometricAccount? _selectedBiometricAccount;
 
   String? _lastLoginPassword;
+  bool _didNavigateAfterLogin = false;
+  final TextEditingController _totpController = TextEditingController(text: '');
+  bool _isSubmittingTotp = false;
 
   @override
   void initState() {
@@ -40,6 +46,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _didNavigateAfterLogin = true;
+    _isTotpDialogVisible = false;
+    _totpController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -122,9 +131,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleBiometricLogin() async {
     if (!_biometricAvailable || _selectedBiometricAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể đăng nhập bằng vân tay.'),
-        ),
+        const SnackBar(content: Text('Không thể đăng nhập bằng vân tay.')),
       );
       return;
     }
@@ -201,10 +208,18 @@ class _LoginPageState extends State<LoginPage> {
   // ================== UI ==================
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final bool isProcessing = _isSubmittingTotp || authState is AuthLoading;
+
     return Scaffold(
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) async {
           if (state is AuthError) {
+            if (mounted) {
+              setState(() {
+                _isSubmittingTotp = false;
+              });
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
@@ -212,60 +227,99 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           } else if (state is AuthLoginTotpRequired) {
-            await _showTotpDialog(state);
+            if (mounted) {
+              setState(() {
+                _isSubmittingTotp = false;
+              });
+            }
+            if (!_isTotpDialogVisible) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted || _isTotpDialogVisible) return;
+                _showTotpDialog(state);
+              });
+            }
           } else if (state is AuthAuthenticated) {
+            if (mounted) {
+              setState(() {
+                _isSubmittingTotp = false;
+              });
+            }
+            if (_didNavigateAfterLogin) return;
             try {
               // âœ… LOGIC Má»šI: KhÃ´ng can thiá»‡p vÃ o biometric Ä‘Ã£ Ä‘Æ°á»£c báº­t trong AccountPage
               // Chá»‰ lÆ°u/cáº­p nháº­t náº¿u user CHá»ŒN "Ghi nhá»› Ä‘Äƒng nháº­p"
-              
+
               final userId = state.user.id;
               final alreadyEnabled = await BiometricAuth.isEnabled(userId);
-              
-              if (_rememberMe && (_lastLoginPassword?.isNotEmpty ?? false)) {
-                // User tick "Ghi nhá»›" â†’ LÆ°u/cáº­p nháº­t thÃ´ng tin
+              final passwordForCache =
+                  (_lastLoginPassword != null && _lastLoginPassword!.isNotEmpty)
+                  ? _lastLoginPassword!
+                  : _passwordController.text;
+
+              if (passwordForCache.isNotEmpty) {
+                final cachedAccount = BiometricAccount(
+                  userId: userId,
+                  email: state.user.email,
+                  password: passwordForCache,
+                  fullName: state.user.fullName,
+                  role: state.user.role,
+                );
+                await _secure.write(
+                  key: 'biometric_last_' + userId,
+                  value: jsonEncode(cachedAccount.toJson()),
+                  aOptions: BiometricAuth.androidOptions,
+                  iOptions: BiometricAuth.iosOptions,
+                );
+              }
+
+              if (_rememberMe && passwordForCache.isNotEmpty) {
                 final account = BiometricAccount(
                   userId: userId,
                   email: state.user.email,
-                  password: _lastLoginPassword!,
+                  password: passwordForCache,
                   fullName: state.user.fullName,
                   role: state.user.role,
                 );
                 await BiometricAuth.saveAccount(account);
               } else if (!_rememberMe && !alreadyEnabled) {
-                // User KHÃ”NG tick "Ghi nhá»›" VÃ€ chÆ°a báº­t biometric trong settings
-                // â†’ KhÃ´ng lÃ m gÃ¬ cáº£ (giá»¯ nguyÃªn tráº¡ng thÃ¡i)
-                // âœ… QUAN TRá»ŒNG: KhÃ´ng xÃ³a náº¿u Ä‘Ã£ Ä‘Æ°á»£c báº­t trong AccountPage
+                // Giữ nguyên trạng thái, không xoá dữ liệu đã bật từ trang Tài khoản
               }
-              // Náº¿u alreadyEnabled = true vÃ  khÃ´ng tick "Ghi nhá»›"
-              // â†’ GIá»® NGUYÃŠN, khÃ´ng xÃ³a
-              
             } catch (e) {
               debugPrint('Biometric save error: $e');
-              // Bá» qua lá»—i secure storage
+              // Bỏ qua lỗi secure storage
             }
-            
+
             if (!mounted) return;
-            context.go('/splash');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || _didNavigateAfterLogin) return;
+              _didNavigateAfterLogin = true;
+              context.go('/splash');
+            });
           }
         },
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSizes.paddingLarge),
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-                _buildLogo(),
-                const SizedBox(height: 20),
-                _buildLoginForm(),
-                const SizedBox(height: 20),
-                _buildForgotPassword(),
-                const SizedBox(height: 20),
-                _buildLoginButtons(),
-                const SizedBox(height: 12),
-                _buildRegisterLink(),
-              ],
+        child: Stack(
+          children: [
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSizes.paddingLarge),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    _buildLogo(),
+                    const SizedBox(height: 20),
+                    _buildLoginForm(),
+                    const SizedBox(height: 20),
+                    _buildForgotPassword(),
+                    const SizedBox(height: 20),
+                    _buildLoginButtons(),
+                    const SizedBox(height: 12),
+                    _buildRegisterLink(),
+                  ],
+                ),
+              ),
             ),
-          ),
+            if (isProcessing) _buildProcessingOverlay(),
+          ],
         ),
       ),
     );
@@ -317,7 +371,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildLoginButtons() {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        final isLoading = state is AuthLoading;
+        final isLoading = state is AuthLoading || _isSubmittingTotp;
         final canUseBiometric =
             _biometricAvailable && _selectedBiometricAccount != null;
 
@@ -326,8 +380,7 @@ class _LoginPageState extends State<LoginPage> {
           onLogin: _login,
           biometricAvailable: _biometricAvailable,
           biometricBusy: _biometricBusy,
-          onBiometricPressed:
-              canUseBiometric ? _handleBiometricLogin : null,
+          onBiometricPressed: canUseBiometric ? _handleBiometricLogin : null,
           biometricAccounts: _biometricAccounts,
           selectedAccount: _selectedBiometricAccount,
           onPickAccount: _showBiometricAccountPicker,
@@ -361,8 +414,12 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _showTotpDialog(AuthLoginTotpRequired state) async {
     if (_isTotpDialogVisible) return;
+    if (_didNavigateAfterLogin) return;
     setState(() => _isTotpDialogVisible = true);
-    final totpController = TextEditingController();
+    if (!mounted) return;
+    _totpController
+      ..text = ''
+      ..selection = TextSelection.collapsed(offset: 0);
     final message = state.message;
     await showDialog<void>(
       context: context,
@@ -370,25 +427,24 @@ class _LoginPageState extends State<LoginPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Nhập mã xác thực hai bước'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message,
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: totpController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Mã xác thực',
-                  prefixIcon: Icon(Icons.shield_outlined),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message, style: TextStyle(color: Colors.grey.shade700)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _totpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Mã xác thực',
+                    prefixIcon: Icon(Icons.shield_outlined),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -399,7 +455,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                final code = totpController.text.trim();
+                final code = _totpController.text.trim();
                 if (code.length < 4) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -410,13 +466,7 @@ class _LoginPageState extends State<LoginPage> {
                   return;
                 }
                 Navigator.of(dialogContext).pop();
-                context.read<AuthBloc>().add(
-                      AuthLoginRequested(
-                        email: state.email,
-                        password: state.password,
-                        totp: code,
-                      ),
-                    );
+                _submitTotpCode(state, code);
               },
               child: const Text('Xác nhận'),
             ),
@@ -427,7 +477,41 @@ class _LoginPageState extends State<LoginPage> {
     if (mounted) {
       setState(() => _isTotpDialogVisible = false);
     }
-    totpController.dispose();
+  }
+
+  void _submitTotpCode(AuthLoginTotpRequired state, String totp) {
+    if (_isSubmittingTotp) return;
+    setState(() {
+      _isSubmittingTotp = true;
+    });
+    context.read<AuthBloc>().add(
+      AuthLoginRequested(
+        email: state.email,
+        password: state.password,
+        totp: totp,
+      ),
+    );
+  }
+
+  Widget _buildProcessingOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black54,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Đang xác thực...',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showForgotPasswordDialog() {
@@ -474,9 +558,7 @@ class _LoginPageState extends State<LoginPage> {
               Navigator.of(dialogContext).pop();
               ScaffoldMessenger.of(rootContext).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Vui lòng kiểm tra email để đặt lại mật khẩu.',
-                  ),
+                  content: Text('Vui lòng kiểm tra email để đặt lại mật khẩu.'),
                 ),
               );
             },
@@ -487,5 +569,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-
