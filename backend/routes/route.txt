@@ -1,0 +1,180 @@
+//auth
+// Đăng nhập
+router.post('/login', async (req, res) => {
+ // Đăng ký - gửi OTP
+router.post('/register/request-otp', async (req, res) => {
+// Đăng ký - xác thực OTP
+router.post('/register/verify-otp', async (req, res) => {
+// Khởi tạo TOTP
+router.post('/totp/init', authenticateToken, async (req, res) => {
+ // Bật TOTP
+router.post('/totp/enable', authenticateToken, async (req, res) => {
+ // Tắt TOTP
+router.post('/totp/disable', authenticateToken, async (req, res) => {
+ // Xác thực TOTP (dùng khi đăng nhập)
+router.post('/totp/verify', authenticateToken, async (req, res) => {
+// Lấy thông tin người dùng hiện tại
+router.get('/me', authenticateToken, (req, res) => {
+ // Đăng xuất
+router.post('/logout', authenticateToken, (_req, res) => {
+ // Kiểm tra trạng thái SMS
+router.post('/sms/check-report', async (req, res) => {
+ //kiểm tra report smsid
+ router.post('/sms/check-report-by-smsid', async (req, res) => {
+
+//profile
+// Get all profiles with filters user_role
+router.get('/', authenticateToken, async (req, res) => {
+ 
+
+//account 
+
+- lấy ra các account
+router.get('/', authenticateToken, requireRole(['admin'])
+- tạo account
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Toggle account status
+router.patch('/:id/toggle', authenticateToken, requireRole(['admin']), async (req, res) => {
+  // Reset password
+router.patch('/:id/reset-password', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Delete account
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+
+ //student 
+ // Get all students with filters
+router.get('/', authenticateToken, async (req, res) => {
+ // get student theo schedules
+ router.get('/:id/schedules', authenticateToken, async (req, res) => {
+ // Create student
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Update student
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Delete student
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+
+ //teacher
+ // Get all teachers with filters
+router.get('/', authenticateToken, async (req, res) => {
+ // Create teacher
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Update teacher
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Delete teacher
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+
+ //subject
+// Get all subjects
+router.get('/', authenticateToken, async (req, res) => {
+// Create subject
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Update subject
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Delete subject
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+
+
+//room
+// Get all rooms
+router.get('/', authenticateToken, async (req, res) => {
+ // Create room
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Update room
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  // Delete room
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+
+//class
+// Get all classes with filters theo faculty and cohor
+router.get('/', authenticateToken, async (req, res) => {
+ // Create class
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Update class
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Delete class
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+
+
+//faculty
+// Get all faculties
+router.get('/', authenticateToken, async (req, res) => {
+ // Create faculty
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Update faculty
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Delete faculty
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+
+
+
+ //enrollment
+ //lấy ra enrollment
+ router.get('/', authenticateToken, async (req, res) => {
+  // tạo enrollment
+  router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+ //cập nhật enrollment, nhận vào compositeId, và kiểm tra student và section có hợp lệ hay không
+ router.put('/:compositeId', authenticateToken, requireRole(['admin']), async (req, res) => {
+//delete enrollment
+router.delete('/:compositeId', authenticateToken, requireRole(['admin']), async (req, res) => {
+
+//class_sections
+// Get all class sections with filters subject
+router.get('/', authenticateToken, async (req, res) => {
+ // Create a new class section
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Update a class section
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ // Delete a class section
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+
+
+//teaching assignment
+//lấy ra các teaching_assignments
+router.get('/', authenticateToken, async (req, res) => {
+//tạo teaching_assignments
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+//cập nhật teaching_assignments
+//truyền vào sectionid và teacherid xong đó đặt 2case để xét
+router.put('/:sectionId/:teacherId', authenticateToken, requireRole(['admin']), async (req, res) => {
+//xóa teaching_assignments
+router.delete('/:sectionId/:teacherId', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+
+ //session_instances
+ //lấy ra các session_instances
+router.get('/', authenticateToken, async (req, res) => {
+//lấy chi tiết theo id 
+router.get('/:id', authenticateToken, async (req, res) => {
+//tạo 
+router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+//cập nhật theo id
+router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ //delete theo id
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+ 
+ //session_checkin_tokens 
+ router.get('/', authenticateToken, requireRole('teacher','admin'), ... )
+//open mở checkin mới đóng checkin cũ
+router.post('/open', authenticateToken, requireRole('teacher','admin'), ... )
+//set is_active các token đang active về 0
+router.post('/close', authenticateToken, requireRole('teacher','admin'), ... )
+//cộng thêm add_seconds vào 
+router.post('/extend', authenticateToken, requireRole('teacher','admin'), ... )
+
+//checkin tại sinh viên 
+ * POST /checkin/pin
+router.post('/pin', authenticateToken, async (req, res) => {
+  * POST /checkin/qr
+ router.post('/qr', authenticateToken, async (req, res) => {
+ 
+//attendance
+router.get('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
+ //lấy attendance theo theo procedure from_date, to_date
+ router.get('/stats', authenticateToken, async (req, res) => {
+//xóa 
+router.delete('/:id', authenticateToken, requireRole(['admin', 'teacher']), async (req, res) => {
+ 

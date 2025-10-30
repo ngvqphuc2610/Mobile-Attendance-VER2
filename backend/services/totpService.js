@@ -34,9 +34,34 @@ function encryptSecret(secret) {
   return Buffer.concat([iv, authTag, encrypted]).toString('base64');
 }
 
+function normaliseEncryptedPayload(payload) {
+  if (!payload) {
+    throw new Error('Missing encrypted TOTP payload');
+  }
+
+  if (Buffer.isBuffer(payload)) {
+    return payload.toString('utf8');
+  }
+
+  if (payload instanceof Uint8Array) {
+    return Buffer.from(payload).toString('utf8');
+  }
+
+  if (typeof payload === 'string') {
+    return payload.trim();
+  }
+
+  return String(payload);
+}
+
 function decryptSecret(encryptedPayload) {
   const key = getAesKey();
-  const buffer = Buffer.from(encryptedPayload, 'base64');
+  const normalised = normaliseEncryptedPayload(encryptedPayload);
+  if (!normalised) {
+    throw new Error('Encrypted TOTP payload is empty');
+  }
+
+  const buffer = Buffer.from(normalised, 'base64');
   const iv = buffer.subarray(0, AES_IV_LENGTH);
   const authTag = buffer.subarray(AES_IV_LENGTH, AES_IV_LENGTH + 16);
   const encrypted = buffer.subarray(AES_IV_LENGTH + 16);

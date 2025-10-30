@@ -56,6 +56,15 @@ class AuthCheckRequested extends AuthEvent {}
 
 class AuthRefreshRequested extends AuthEvent {}
 
+class AuthUserUpdated extends AuthEvent {
+  final UserModel user;
+
+  const AuthUserUpdated(this.user);
+
+  @override
+  List<Object?> get props => [user];
+}
+
 // States
 abstract class AuthState extends Equatable {
   const AuthState();
@@ -97,8 +106,6 @@ class AuthRegisterOtpSent extends AuthState {
   List<Object?> get props => [result];
 }
 
-
-
 class AuthLoginTotpRequired extends AuthState {
   final String email;
   final String password;
@@ -119,14 +126,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
 
   AuthBloc({required AuthRepository authRepository})
-      : _authRepository = authRepository,
-        super(AuthInitial()) {
+    : _authRepository = authRepository,
+      super(AuthInitial()) {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterOtpRequested>(_onRegisterOtpRequested);
     on<AuthRegisterOtpSubmitted>(_onRegisterOtpSubmitted);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthRefreshRequested>(_onRefreshRequested);
+    on<AuthUserUpdated>(_onUserUpdated);
   }
 
   Future<void> _onLoginRequested(
@@ -134,7 +142,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
-    
+
     try {
       final user = await _authRepository.login(
         event.email,
@@ -162,9 +170,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
 
     try {
-      final result = await _authRepository.requestRegisterOtp(
-        data: event.data,
-      );
+      final result = await _authRepository.requestRegisterOtp(data: event.data);
       emit(AuthRegisterOtpSent(result));
     } catch (e) {
       emit(AuthError(message: e.toString()));
@@ -193,7 +199,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
-    
+
     try {
       await _authRepository.logout();
       emit(AuthUnauthenticated());
@@ -207,7 +213,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
-    
+
     try {
       final user = await _authRepository.refreshCurrentUser();
       if (user != null) {
@@ -225,10 +231,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
-    
+
     try {
       final isLoggedIn = await _authRepository.isLoggedIn();
-      
+
       if (isLoggedIn) {
         final user = await _authRepository.getCurrentUser();
         if (user != null) {
@@ -241,6 +247,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     } catch (e) {
       emit(AuthUnauthenticated());
+    }
+  }
+
+  void _onUserUpdated(AuthUserUpdated event, Emitter<AuthState> emit) {
+    final current = state;
+    if (current is AuthAuthenticated) {
+      emit(AuthAuthenticated(user: event.user));
     }
   }
 }

@@ -50,7 +50,6 @@ router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   }
 });
 
-// Create account
 router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   const connection = await db.getConnection();
   

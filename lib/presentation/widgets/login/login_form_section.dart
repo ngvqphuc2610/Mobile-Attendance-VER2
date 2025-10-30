@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_theme.dart';
+import '../../../core/constants/app_theme.dart';
 
 class LoginFormSection extends StatelessWidget {
   final GlobalKey<FormState> formKey;

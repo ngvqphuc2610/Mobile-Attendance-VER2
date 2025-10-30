@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_theme.dart';
-import '../../../widgets/BiometricLoginButton.dart';
-import '../../../../core/services/biometric_auth.dart';
+import '../../../core/constants/app_theme.dart';
+import '../BiometricLoginButton.dart';
+import '../../../core/services/biometric_auth.dart';
 
 class LoginButtonsSection extends StatelessWidget {
   final bool isLoading;

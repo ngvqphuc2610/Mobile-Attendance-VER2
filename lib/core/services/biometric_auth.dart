@@ -42,10 +42,10 @@ class BiometricAuth {
   static final LocalAuthentication _auth = LocalAuthentication();
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
-  static const AndroidOptions _androidOptions = AndroidOptions(
+  static const AndroidOptions androidOptions = AndroidOptions(
     encryptedSharedPreferences: true,
   );
-  static const IOSOptions _iosOptions = IOSOptions();
+  static const IOSOptions iosOptions = IOSOptions();
 
   static const String _accountPrefix = 'biometric_account_';
   static const String _enabledPrefix = 'biometric_enabled_';
@@ -82,8 +82,8 @@ class BiometricAuth {
     await _storage.write(
       key: '$_accountPrefix${account.userId}',
       value: jsonEncode(account.toJson()),
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
     await setEnabled(account.userId, true);
   }
@@ -91,8 +91,8 @@ class BiometricAuth {
   static Future<void> deleteAccount(String userId) async {
     await _storage.delete(
       key: '$_accountPrefix$userId',
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
     await setEnabled(userId, false);
   }
@@ -101,24 +101,24 @@ class BiometricAuth {
     await _storage.write(
       key: '$_enabledPrefix$userId',
       value: enabled ? 'true' : 'false',
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
   }
 
   static Future<bool> isEnabled(String userId) async {
     final value = await _storage.read(
       key: '$_enabledPrefix$userId',
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
     return value == 'true';
   }
 
   static Future<List<BiometricAccount>> getAccounts() async {
     final entries = await _storage.readAll(
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
 
     final accounts = <BiometricAccount>[];
@@ -138,8 +138,8 @@ class BiometricAuth {
   static Future<BiometricAccount?> getAccount(String userId) async {
     final value = await _storage.read(
       key: '$_accountPrefix$userId',
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
+      aOptions: androidOptions,
+      iOptions: iosOptions,
     );
     if (value == null) return null;
     try {
