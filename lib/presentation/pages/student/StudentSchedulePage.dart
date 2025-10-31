@@ -150,14 +150,13 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
     StudentScheduleState state,
   ) {
     if (state is StudentSchedulesLoaded) {
+      // ✅ Chỉ update semester options khi có data mới
       if (!identical(_lastSchedulesRef, state.schedules)) {
         _lastSchedulesRef = state.schedules;
         _updateSemesterOptions(state.schedules);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _applyFilters();
-        });
       }
+      // ✅ KHÔNG gọi _applyFilters ở đây nữa
+      // Vì BLoC đã filter data rồi khi load
     }
   }
 
@@ -170,7 +169,7 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
           onSelected: (selected) {
             if (!selected) return;
             setState(() => _mode = _ScheduleFilterMode.week);
-            _applyFilters(loadRemote: true);
+            _applyFilters();
           },
         ),
         const SizedBox(width: 12),
@@ -180,7 +179,7 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
           onSelected: (selected) {
             if (!selected) return;
             setState(() => _mode = _ScheduleFilterMode.semester);
-            _applyFilters(loadRemote: true);
+            _applyFilters();
           },
         ),
       ],
@@ -212,7 +211,7 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
         const Spacer(),
         IconButton(
           tooltip: 'Tai lai',
-          onPressed: widget.onRefreshRequested,
+          onPressed: _onRefreshPressed,
           icon: const Icon(Icons.refresh),
         ),
         const SizedBox(width: 4),
@@ -260,13 +259,13 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
               .toList(),
           onChanged: (value) {
             setState(() => _selectedSemester = value);
-            _applyFilters(loadRemote: true);
+            _applyFilters();
           },
         ),
         const Spacer(),
         IconButton(
           tooltip: 'Tai lai',
-          onPressed: widget.onRefreshRequested,
+          onPressed: _onRefreshPressed,
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -281,7 +280,7 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
     if (state is StudentScheduleError) {
       return _ErrorView(
         message: state.message,
-        onRetry: widget.onRefreshRequested,
+        onRetry: _onRefreshPressed,
       );
     }
 
@@ -318,12 +317,18 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
         _currentWeekStart.add(Duration(days: 7 * delta)),
       );
     });
-    _applyFilters(loadRemote: true);
+    _applyFilters();
   }
 
-  void _applyFilters({bool loadRemote = false}) {
+  // ✅ Handler riêng cho nút refresh
+  void _onRefreshPressed() {
+    // Load lại data từ server với filter hiện tại
+    _applyFilters();
+  }
+
+  // ✅ Simplified _applyFilters - LUÔN load từ remote
+  void _applyFilters() {
     final bloc = context.read<StudentScheduleBloc>();
-    final currentState = bloc.state;
 
     if (_mode == _ScheduleFilterMode.week) {
       final from = _currentWeekStart;
@@ -331,41 +336,35 @@ class _StudentScheduleViewState extends State<_StudentScheduleView> {
         const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
       );
 
-      if (loadRemote || currentState is! StudentSchedulesLoaded) {
-        bloc.add(
-              LoadStudentSchedules(
-                studentId: widget.studentId,
-                from: from,
-                to: to,
-              ),
-            );
-      } else {
-        bloc.add(FilterStudentSchedules(from: from, to: to));
-      }
+      // ✅ LUÔN load từ remote để đảm bảo data mới nhất
+      bloc.add(
+        LoadStudentSchedules(
+          studentId: widget.studentId,
+          from: from,
+          to: to,
+        ),
+      );
     } else {
       final opt = _selectedSemester;
-      if (loadRemote || currentState is! StudentSchedulesLoaded) {
-        bloc.add(
-              LoadStudentSchedules(
-                studentId: widget.studentId,
-                semester: opt?.semester,
-                year: opt?.year,
-              ),
-            );
-      } else {
-        bloc.add(
-          FilterStudentSchedules(
-                semester: opt?.semester,
-                year: opt?.year,
-              ),
-            );
-      }
+      
+      // ✅ LUÔN load từ remote để đảm bảo data mới nhất
+      bloc.add(
+        LoadStudentSchedules(
+          studentId: widget.studentId,
+          semester: opt?.semester,
+          year: opt?.year,
+        ),
+      );
     }
   }
 
   DateTime _startOfWeek(DateTime date) {
     final delta = date.weekday - DateTime.monday;
-    return date.subtract(Duration(days: delta < 0 ? 0 : delta));
+    return DateTime(
+      date.year,
+      date.month,
+      date.day - (delta < 0 ? 0 : delta),
+    );
   }
 
   void _updateSemesterOptions(List<StudentScheduleEntity> schedules) {
@@ -681,9 +680,3 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

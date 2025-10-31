@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/di/dependency_injection.dart';
+import '../../../presentation/bloc/attendance/attendance_bloc.dart';
+import '../../../presentation/bloc/attendance/attendance_event.dart';
+import '../../../presentation/bloc/class_section/class_section_bloc.dart';
+import '../../../presentation/bloc/class_section/class_section_event.dart';
 import '../../../presentation/bloc/enrollment/enrollment_bloc.dart';
 import '../../../presentation/bloc/enrollment/enrollment_event.dart';
 import '../../../presentation/bloc/enrollment/enrollment_state.dart';
+import '../../../presentation/bloc/session_instance/session_instance_bloc.dart';
+import '../../../presentation/bloc/session_instance/session_instance_event.dart';
 import 'StudentDetailClassPage.dart';
 
 class StudentListClassPage extends StatefulWidget {
@@ -104,12 +111,34 @@ class StudentListClassPageState extends State<StudentListClassPage> {
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
+                      final sectionId = enrollment.sectionId ?? '';
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => StudentDetailClassPage(
-                            classSectionId: enrollment.sectionId ?? '',
-                           
+                          builder: (_) => MultiBlocProvider(
+                            providers: [
+                              BlocProvider<ClassSectionBloc>(
+                                create: (_) =>
+                                    sl<ClassSectionBloc>()..add(const LoadClassSections()),
+                              ),
+                              BlocProvider<SessionInstanceBloc>(
+                                create: (_) => sl<SessionInstanceBloc>()
+                                  ..add(LoadSessionInstances(sectionId: sectionId)),
+                              ),
+                              BlocProvider<AttendanceBloc>(
+                                create: (_) => sl<AttendanceBloc>()
+                                  ..add(
+                                    LoadAttendances(
+                                      userId: widget.studentId,
+                                      sectionId: sectionId,
+                                    ),
+                                  ),
+                              ),
+                            ],
+                            child: StudentDetailClassPage(
+                              classSectionId: sectionId,
+                              studentId: widget.studentId,
+                            ),
                           ),
                         ),
                       );
