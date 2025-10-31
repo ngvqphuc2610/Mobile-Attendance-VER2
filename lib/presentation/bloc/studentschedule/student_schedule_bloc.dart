@@ -1,4 +1,3 @@
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/repositories/student_schedule_repository.dart';
 import 'student_schedule_event.dart';
@@ -29,9 +28,19 @@ class StudentScheduleBloc extends Bloc<StudentScheduleEvent, StudentScheduleStat
         semester: event.semester,
         year: event.year,
       );
+      
+      // ✅ Apply filter ngay sau khi load
+      final filtered = _applyFilters(
+        schedules,
+        from: event.from,
+        to: event.to,
+        semester: event.semester,
+        year: event.year,
+      );
+      
       emit(StudentSchedulesLoaded(
         schedules: schedules,
-        filteredSchedules: schedules,
+        filteredSchedules: filtered,
       ));
     } catch (e) {
       emit(StudentScheduleError(e.toString()));
@@ -45,35 +54,53 @@ class StudentScheduleBloc extends Bloc<StudentScheduleEvent, StudentScheduleStat
     final current = state;
     if (current is! StudentSchedulesLoaded) return;
 
-    var filtered = current.schedules;
-
-    if (event.semester != null && event.year != null) {
-      filtered = filtered
-          .where((s) => s.semester == event.semester && s.year == event.year)
-          .toList(growable: false);
-    } else if (event.semester != null) {
-      filtered = filtered
-          .where((s) => s.semester == event.semester)
-          .toList(growable: false);
-    } else if (event.year != null) {
-      filtered =
-          filtered.where((s) => s.year == event.year).toList(growable: false);
-    }
-
-    if (event.from != null && event.to != null) {
-      final from = event.from!;
-      final to = event.to!;
-      filtered = filtered.where((schedule) {
-        final date = schedule.startsAt ??
-            DateTime(
-              from.year,
-              from.month,
-              from.day,
-            );
-        return !date.isBefore(from) && !date.isAfter(to);
-      }).toList(growable: false);
-    }
+    final filtered = _applyFilters(
+      current.schedules,
+      from: event.from,
+      to: event.to,
+      semester: event.semester,
+      year: event.year,
+    );
 
     emit(current.copyWith(filteredSchedules: filtered));
+  }
+
+  // ✅ Helper method để tránh duplicate code
+  List<StudentScheduleEntity> _applyFilters(
+    List<StudentScheduleEntity> schedules, {
+    DateTime? from,
+    DateTime? to,
+    int? semester,
+    int? year,
+  }) {
+    var filtered = schedules;
+
+    // Filter by semester and year
+    if (semester != null && year != null) {
+      filtered = filtered
+          .where((s) => s.semester == semester && s.year == year)
+          .toList();
+    } else if (semester != null) {
+      filtered = filtered
+          .where((s) => s.semester == semester)
+          .toList();
+    } else if (year != null) {
+      filtered = filtered
+          .where((s) => s.year == year)
+          .toList();
+    }
+
+    // Filter by date range
+    if (from != null && to != null) {
+      filtered = filtered.where((schedule) {
+        // ✅ Chỉ giữ schedules có startsAt hợp lệ
+        if (schedule.startsAt == null) return false;
+        
+        final date = schedule.startsAt!;
+        return !date.isBefore(from) && !date.isAfter(to);
+      }).toList();
+    }
+
+    return filtered;
   }
 }
